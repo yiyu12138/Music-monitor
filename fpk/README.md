@@ -6,11 +6,11 @@
 
 在飞牛 NAS（或任意装有飞牛 python312 运行时与 `fnpack` 的 Linux）上执行：
 
-`~/bash
+```bash
 git clone https://github.com/yiyu12138/Music-monitor.git
 cd Music-monitor
 bash fpk/build.sh
-`~
+```
 
 产物：仓库根目录下的 `music-monitor_<版本>_x86_native.fpk`（约 30~40MB，依赖已随包携带，安装端无需联网）。
 
@@ -43,7 +43,7 @@ bash fpk/build.sh
 
 ## 打包结构
 
-`~
+```
 fpk/
 ├── manifest                    # 应用元信息（appname / version / install_dep_apps=python312 / 桌面入口）
 ├── ICON.PNG / ICON_256.PNG     # 应用中心图标
@@ -56,7 +56,7 @@ fpk/
     ├── server/                 # 应用源码（本项目全部文件）
     ├── pylib/                  # Python 依赖（pip --target，与 python312 同解释器）
     └── ui/config、ui/images/   # 桌面入口图标与 URL
-`~
+```
 
 向导字段会以环境变量注入到 `cmd/*` 脚本（`wizard_port`、`wizard_music_dir`、`wizard_data_dir`、`wizard_tz`），脚本里用 `${wizard_port:-默认值}` 的形式取值。
 
