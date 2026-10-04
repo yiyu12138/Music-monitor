@@ -69,6 +69,8 @@ bash fpk/build.sh          # 产出 music-monitor_<版本>_x86_native.fpk（约 
 
 - 在应用设置的「环境变量」里改端口或目录，保存时会自动写入配置并重启服务。
 - **卸载会停止服务，但保留数据目录与音乐目录**；升级只需重新打包并覆盖安装。
+> 不想自己打包？可以直接到 **[Releases](https://github.com/yiyu12138/Music-monitor/releases/latest)** 下载预编译好的 `music-monitor_<版本>_x86_native.fpk`。
+
 - 打包细节见 [fpk/README.md](fpk/README.md)。
 
 ## 🐳 部署方式二：Docker
