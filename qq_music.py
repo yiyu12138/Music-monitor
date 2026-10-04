@@ -143,6 +143,10 @@ async def initialize_from_cookie():
         auth_completed.set()
 
 
+# 二维码状态里出现库不认识的状态码（例如 666，通常是这张二维码已失效）时的连续次数
+_qr_unknown_streak = 0
+
+
 async def get_login_qrcode(login_type: str = "QQ"):
     """获取登录二维码
 
@@ -152,7 +156,8 @@ async def get_login_qrcode(login_type: str = "QQ"):
     Returns:
         bytes: 二维码图片数据
     """
-    global login_session
+    global login_session, _qr_unknown_streak
+    _qr_unknown_streak = 0
     initialize_qqmusic_session()  # 确保客户端存在
 
     login_type_enum = QRLoginType.QQ if login_type == "QQ" else QRLoginType.WX
@@ -169,7 +174,7 @@ async def get_login_qrcode(login_type: str = "QQ"):
 
 async def check_login_status():
     """检查二维码扫描状态（每次调用查询一次，供前端轮询）"""
-    global login_session
+    global login_session, _qr_unknown_streak
     if not login_session:
         return {"status": "error", "message": "请先获取二维码"}
 
@@ -180,6 +185,8 @@ async def check_login_status():
 
         result = await global_client.login.check_qrcode(qr)
         event = result.event
+
+        _qr_unknown_streak = 0
 
         if event == QRCodeLoginEvents.DONE:
             cred = result.credential
@@ -201,6 +208,16 @@ async def check_login_status():
             "is_success": False,
         }
     except Exception as e:
+        msg = str(e)
+        # QQ 偶尔会返回库不认识的二维码状态码（例如 666，一般是这张二维码已失效）。
+        # 这种状态不要每次轮询都写日志，连续出现就按「二维码已失效」处理，让前端停止轮询。
+        if "无法识别的二维码登录状态码" in msg:
+            _qr_unknown_streak += 1
+            if _qr_unknown_streak == 1:
+                print(f"二维码状态异常（{msg}）；若连续出现将按「二维码已失效」处理，请重新获取二维码")
+            if _qr_unknown_streak >= 3:
+                return {"status": "expired", "message": "二维码已失效，请重新获取", "is_success": False}
+            return {"status": "unknown", "message": "二维码状态异常，正在重试…", "is_success": False}
         print(f"检查二维码登录状态失败: {e}")
         return {"status": "error", "message": f"登录失败: {e}", "is_success": False}
 

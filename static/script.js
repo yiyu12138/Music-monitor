@@ -122,6 +122,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const qrTip = document.getElementById('qrcode-tip');
                 if (qrTip) qrTip.textContent = `请使用${loginType === 'QQ' ? '手机 QQ' : '微信'}扫描二维码`;
                 loginStatus.textContent = `请使用${loginType === 'QQ' ? 'QQ' : '微信'}扫描二维码`;
+                // 先清掉可能存在的旧轮询，避免重复请求（日志被刷屏）
+                if (loginCheckInterval) clearInterval(loginCheckInterval);
                 loginCheckInterval = setInterval(checkLoginStatus, 2000);
             } else {
                 loginStatus.textContent = '获取二维码失败，请重试。';
@@ -148,12 +150,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (workspace) workspace.hidden = false;
                 loadUserInfo();
                 await getUserPlaylists();
-            } else if (data.status === 'timeout') {
+            } else if (data.status === 'timeout' || data.status === 'expired') {
                 clearInterval(loginCheckInterval);
-                loginStatus.textContent = '二维码已过期，请重新获取。';
+                const expired = data.status === 'expired';
+                loginStatus.textContent = expired ? '二维码已失效，请重新获取。' : '二维码已过期，请重新获取。';
                 loginBtn.disabled = false;
-                qrcodeContainer.style.display = 'none';
-                document.body.classList.remove('qq-login-open');
+                // 保留登录卡片，提示用户重新获取（点上方「QQ 扫码 / 微信扫码」即可）
+                qrcodeContainer.style.display = 'block';
+                const tip = document.getElementById('qrcode-tip');
+                if (tip) tip.textContent = expired ? '二维码已失效，请点上方「QQ 扫码」重新获取' : '二维码已过期，请点上方「QQ 扫码」重新获取';
+                const qrImg = document.getElementById('qrcode-img');
+                if (qrImg) qrImg.style.opacity = '0.25';
             }
         } catch (error) {
             console.error('检查登录状态失败:', error);
