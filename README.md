@@ -37,41 +37,8 @@
 
 ## 🚀 部署方式一：飞牛 fnOS 原生应用（fpk，推荐给飞牛用户）
 
-**不使用 Docker**：应用以飞牛原生服务方式运行，直接用系统里的 **Python 3.12 运行时**（`python312`）启动服务，依赖随包携带，安装时不需要联网构建。
+可以直接到 **[Releases](https://github.com/yiyu12138/Music-monitor/releases/latest)** 下载预编译好的 `music-monitor_<版本>_x86_native.fpk`。
 
-### 构建
-
-在飞牛 NAS 上执行（需要 Docker 无关，仅需 `fnpack` 与 `python312`）：
-
-`~bash
-git clone https://github.com/yiyu12138/Music-monitor.git
-cd Music-monitor
-bash fpk/build.sh          # 产出 music-monitor_<版本>_x86_native.fpk（约 30MB）
-`~
-
-### 安装
-
-1. 应用中心确认已安装 **Python 3.12**（`python312`）。
-2. 应用中心 → 右上角「手动安装」→ 选择生成的 `.fpk`（第三方应用会提示未签名，属正常）。
-3. 按向导填写：访问端口（默认 `6696`）、音乐保存目录（默认 `/vol1/1000/music`，就是实际保存路径）、应用数据目录（默认 `/var/apps/music-monitor/var/data`）、时区。
-4. 完成后点「打开」，或访问 `http://<NAS 地址>:<端口>`。
-
-### 运行方式与目录
-
-| 项目 | 说明 |
-|---|---|
-| 运行时 | `/var/apps/python312/target/bin/python3` |
-| 应用文件 | `/var/apps/music-monitor/target/server`（源码）、`.../target/pylib`（依赖） |
-| 启动命令 | `python3 -m uvicorn main:app --host 0.0.0.0 --port <端口>` |
-| 数据目录 | 向导里的「应用数据目录」，里面有 `config.json`、登录 cookie、任务历史、监控歌单 |
-| 日志 | `/var/apps/music-monitor/var/app.log`（另有 `install.log`、`config.log`） |
-| 进程管理 | `cmd/main start|stop|status`，PID 记在 `/var/apps/music-monitor/var/app.pid` |
-
-- 在应用设置的「环境变量」里改端口或目录，保存时会自动写入配置并重启服务。
-- **卸载会停止服务，但保留数据目录与音乐目录**；升级只需重新打包并覆盖安装。
-> 不想自己打包？可以直接到 **[Releases](https://github.com/yiyu12138/Music-monitor/releases/latest)** 下载预编译好的 `music-monitor_<版本>_x86_native.fpk`。
-
-- 打包细节见 [fpk/README.md](fpk/README.md)。
 
 ## 🐳 部署方式二：Docker
 
