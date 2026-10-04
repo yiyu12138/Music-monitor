@@ -1,5 +1,5 @@
 appname               = music-monitor
-version               = 1.2.2
+version               = 1.2.3
 display_name          = 音乐下载器
 desc                  = 自托管的音乐歌单监控下载器：登录 QQ 音乐 / 网易云音乐，浏览歌单、搜索、在线试听、下载歌曲，监控歌单自动下载新歌，并自动写入标签、封面与歌词。开源地址：https://github.com/yiyu12138/Music-monitor
 platform              = x86
@@ -13,4 +13,4 @@ desktop_applaunchname = music-monitor.Application
 install_dep_apps      = python312
 ctl_stop              = true
 checkport             = false
-changelog             = v1.1.0 首次发布：原生应用（依赖飞牛 python312 运行时，不使用 Docker）
+changelog             = v1.2.3 修复 Bark 推送丢失（正文含斜杠导致 404）
