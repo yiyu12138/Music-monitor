@@ -40,12 +40,33 @@ document.addEventListener('DOMContentLoaded', () => {
     setupConfigPage();
 
     // --- Event Listeners ---
+    // QQ 登录卡片：与网易云一致的三选项卡（QQ 扫码 / 微信扫码 / 手机号）
+    let qqLoginMode = 'QQ';
+    const QQ_TAB_ORDER = { qq: 0, wx: 1, phone: 2 };
+
+    function setQqLoginTab(mode) {
+        const tabs = document.getElementById('qq-login-tabs');
+        if (!tabs) return;
+        const index = QQ_TAB_ORDER[mode];
+        Array.from(tabs.children).forEach((btn, i) => {
+            const on = i === index;
+            btn.classList.toggle('active', on);
+            if (on) btn.setAttribute('aria-selected', 'true');
+            else btn.removeAttribute('aria-selected');
+        });
+    }
+
     document.querySelectorAll('.login-type-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.preventDefault();
-            const loginType = e.target.dataset.type;
-            handleLoginClick(loginType);
+            handleLoginClick(btn.dataset.type);
         });
+    });
+    loginBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (loginBtn.disabled) return;
+        if (qqLoginMode === 'PHONE') showPhoneLogin();
+        else handleLoginClick(qqLoginMode);
     });
     logoutBtn.addEventListener('click', handleLogoutClick);
     
@@ -76,8 +97,10 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // 手机号登录按钮点击事件
     document.addEventListener('click', function(e) {
-        if (e.target.classList.contains('phone-login-btn')) {
+        const phoneBtn = e.target.closest && e.target.closest('.phone-login-btn');
+        if (phoneBtn) {
             e.preventDefault();
+            if (qqLoginMode === 'PHONE') return;
             showPhoneLogin();
         }
     });
@@ -94,6 +117,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 qrcodeContainer.style.display = 'block';
                 document.getElementById('phone-login-container').style.display = 'none';
                 document.body.classList.add('qq-login-open');
+                qqLoginMode = loginType;
+                setQqLoginTab(loginType === 'QQ' ? 'qq' : 'wx');
                 const qrTip = document.getElementById('qrcode-tip');
                 if (qrTip) qrTip.textContent = `请使用${loginType === 'QQ' ? '手机 QQ' : '微信'}扫描二维码`;
                 loginStatus.textContent = `请使用${loginType === 'QQ' ? 'QQ' : '微信'}扫描二维码`;
@@ -119,6 +144,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 logoutBtn.style.display = 'inline-block';
                 qrcodeContainer.style.display = 'none';
                 document.body.classList.remove('qq-login-open');
+                const workspace = document.getElementById('qq-workspace');
+                if (workspace) workspace.hidden = false;
                 loadUserInfo();
                 await getUserPlaylists();
             } else if (data.status === 'timeout') {
@@ -152,6 +179,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('qrcode-container').style.display = 'none';
         document.getElementById('phone-login-container').style.display = 'block';
         document.body.classList.add('qq-login-open');
+        qqLoginMode = 'PHONE';
+        setQqLoginTab('phone');
         // 更新登录状态文本
         document.getElementById('login-status').textContent = '请使用手机号登录';
     }
@@ -269,16 +298,23 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch('/api/check-auth');
             const data = await response.json();
+            const workspace = document.getElementById('qq-workspace');
             if (data.is_logged_in) {
                 loginStatus.textContent = '已恢复登录';
                 loginBtn.style.display = 'none';
                 logoutBtn.style.display = 'inline-block';
+                if (workspace) workspace.hidden = false;
                 loadUserInfo();
                 await getUserPlaylists();
             } else {
                 loginStatus.textContent = '未登录';
                 loginBtn.style.display = 'inline-block';
                 logoutBtn.style.display = 'none';
+                // 与网易云一致：未登录时直接展示登录卡片，默认 QQ 扫码
+                if (workspace) workspace.hidden = true;
+                document.body.classList.add('qq-login-open');
+                setQqLoginTab('qq');
+                handleLoginClick(qqLoginMode);
             }
         } catch (error) {
             console.error('检查初始登录状态失败:', error);

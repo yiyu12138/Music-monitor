@@ -40,8 +40,8 @@
         </div>
         <nav class="side-links">
             <div class="side-label">音乐平台</div>
-            <a class="nav-link nav-qq" id="nav-music" href="#music"><span class="nav-ico"><i class="bi bi-music-note-beamed"></i></span><span>QQ 音乐</span></a>
-            <a class="nav-link nav-ncm" id="nav-netease" href="#netease"><span class="nav-ico"><i class="bi bi-cloud-fill"></i></span><span>网易云音乐</span></a>
+            <a class="nav-link nav-qq" id="nav-music" href="#music"><span class="nav-ico"><img src="/static/img/brand-qqmusic.png" alt=""></span><span>QQ 音乐</span></a>
+            <a class="nav-link nav-ncm" id="nav-netease" href="#netease"><span class="nav-ico"><img src="/static/img/brand-netease.png" alt=""></span><span>网易云音乐</span></a>
             <div class="side-label">系统</div>
             <a class="nav-link" id="nav-config" href="#config"><span class="nav-ico"><i class="bi bi-sliders"></i></span><span>配置</span></a>
             <a class="nav-link" id="nav-logs" href="#logs"><span class="nav-ico"><i class="bi bi-terminal"></i></span><span>日志</span></a>
@@ -63,7 +63,7 @@
         <section id="music-content" class="page page-qq" style="display: none;">
             <header class="app-bar platform-bar">
                 <div class="app-brand">
-                    <span class="platform-badge qq"><i class="bi bi-music-note-beamed"></i></span>
+                    <span class="platform-badge brand"><img src="/static/img/brand-qqmusic.png" alt="QQ 音乐"></span>
                     <div>
                         <h1>QQ 音乐</h1>
                         <div class="app-sub">歌单 · 搜索 · 自动下载</div>
@@ -74,54 +74,57 @@
                     <span id="user-nickname" style="display: none;"></span>
                     <span id="login-status">正在检查登录状态...</span>
                     <span id="api-cooldown-timer" class="badge bg-warning text-dark" style="display: none;"></span>
-                    <div class="dropdown" id="login-dropdown" style="display: inline-block;">
-                        <button id="login-btn" class="btn btn-primary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <div id="login-dropdown" style="display: inline-block;">
+                        <button id="login-btn" class="btn btn-primary btn-sm" type="button">
                             <i class="bi bi-box-arrow-in-right"></i> 登录
                         </button>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item login-type-btn" href="#" data-type="QQ"><i class="bi bi-qr-code"></i> QQ 扫码登录</a></li>
-                            <li><a class="dropdown-item login-type-btn" href="#" data-type="WX"><i class="bi bi-wechat"></i> 微信扫码登录</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item phone-login-btn" href="#"><i class="bi bi-phone"></i> 手机号登录</a></li>
-                        </ul>
                     </div>
                     <button id="logout-btn" class="btn btn-outline-danger btn-sm" style="display: none;"><i class="bi bi-box-arrow-right"></i> 退出</button>
                 </div>
             </header>
 
-            <!-- 登录卡片：二维码 / 手机号（由 script.js 控制显示） -->
-            <div class="login-sheet">
-                <div id="qrcode-container" class="login-card" style="display: none;">
-                    <button type="button" class="btn-close login-close" id="qr-close-btn" aria-label="关闭"></button>
-                    <div class="qr-frame"><img id="qrcode-img" src="" alt="登录二维码"></div>
-                    <div class="login-card-text">
-                        <h5>扫码登录 QQ 音乐</h5>
-                        <p id="qrcode-tip">请使用手机 QQ 扫描二维码</p>
-                        <p class="text-soft small">登录态保存在 <code>data/</code>，重启后无需重新登录</p>
-                    </div>
+            <!-- 登录面板：与网易云一致的结构（二维码 / 手机号），由 script.js 控制显示 -->
+            <div id="qq-login-stage" class="login-stage qq">
+                <div class="login-hero">
+                    <div class="hero-art qq"><img src="/static/img/brand-qqmusic.png" alt="QQ 音乐"></div>
+                    <h2>登录 QQ 音乐</h2>
+                    <p>登录后即可浏览歌单、搜索下载，并监控歌单自动下载新歌。<br>登录态只保存在你自己的 <code>data/qq_cookie.json</code>。</p>
                 </div>
+                <div class="login-panel">
+                    <div class="seg-tabs" id="qq-login-tabs" role="tablist">
+                        <button type="button" class="login-type-btn" data-type="QQ" role="tab"><i class="bi bi-qr-code-scan"></i> QQ 扫码</button>
+                        <button type="button" class="login-type-btn" data-type="WX" role="tab"><i class="bi bi-wechat"></i> 微信扫码</button>
+                        <button type="button" class="phone-login-btn" role="tab"><i class="bi bi-phone"></i> 手机号</button>
+                    </div>
 
-                <div id="phone-login-container" class="login-card" style="display: none;">
-                    <div class="login-card-text w-100">
-                        <h5><i class="bi bi-phone"></i> 手机号登录 QQ 音乐</h5>
-                        <div class="mb-2">
-                            <input type="tel" class="form-control" id="phone-number" placeholder="请输入手机号" autocomplete="tel">
+                    <div id="qrcode-container" class="login-pane qr-pane" style="display: none;">
+                        <div class="qr-box"><img id="qrcode-img" src="" alt="登录二维码"></div>
+                        <div id="qrcode-tip" class="qr-msg">请使用手机 QQ 扫描二维码</div>
+                        <div class="text-soft small mt-1">扫码登录有效期内请在手机上确认</div>
+                        <button type="button" class="btn btn-ghost btn-sm mt-2" id="qr-close-btn">取消登录</button>
+                    </div>
+
+                    <div id="phone-login-container" class="login-pane" style="display: none;">
+                        <label class="form-label">手机号</label>
+                        <div class="input-group mb-3">
+                            <input type="tel" class="form-control" id="phone-number" placeholder="请输入手机号" autocomplete="tel" inputmode="numeric">
                         </div>
-                        <div id="captcha-container" class="mb-2" style="display: none;">
-                            <div class="d-flex gap-2 mb-2">
+                        <div id="captcha-container" class="mb-3" style="display: none;">
+                            <label class="form-label">图片验证码</label>
+                            <div class="d-flex gap-2">
                                 <input type="text" class="form-control" id="captcha-code" placeholder="请输入图片验证码">
                                 <img id="captcha-img" src="" alt="验证码" class="img-fluid" style="max-width: 100px; cursor: pointer;">
                             </div>
-                            <button class="btn btn-sm btn-outline-secondary" id="refresh-captcha-btn">刷新验证码</button>
+                            <button class="btn btn-sm btn-outline-secondary mt-2" id="refresh-captcha-btn">刷新验证码</button>
                         </div>
-                        <div class="mb-2 d-flex gap-2">
+                        <label class="form-label">短信验证码</label>
+                        <div class="input-group mb-3">
                             <input type="text" class="form-control" id="auth-code" placeholder="短信验证码" inputmode="numeric" autocomplete="one-time-code">
                             <button class="btn btn-outline-secondary text-nowrap" id="send-code-btn">发送验证码</button>
                         </div>
-                        <div class="d-flex gap-2">
-                            <button class="btn btn-primary flex-grow-1" id="phone-login-btn">登录</button>
-                            <button class="btn btn-light" id="back-to-qrcode-btn">取消</button>
-                        </div>
+                        <button class="btn btn-primary w-100" id="phone-login-btn"><i class="bi bi-box-arrow-in-right"></i> 登录</button>
+                        <button class="btn btn-light w-100 mt-2" id="back-to-qrcode-btn">取消</button>
+                        <div class="form-text mt-2">QQ 音乐部分账号需要先完成图片验证码，按提示操作即可。</div>
                     </div>
                 </div>
             </div>
@@ -148,7 +151,7 @@
                 </div>
             </div>
 
-            <div class="row main-layout">
+            <div id="qq-workspace" class="row main-layout" hidden>
                 <!-- 左侧：歌单 -->
                 <div class="col-lg-3 col-md-4 pane">
                     <div class="panel-head">
@@ -238,7 +241,7 @@
         <section id="netease-content" class="page page-ncm" style="display: none;">
             <header class="app-bar platform-bar">
                 <div class="app-brand">
-                    <span class="platform-badge ncm"><i class="bi bi-cloud-fill"></i></span>
+                    <span class="platform-badge brand"><img src="/static/img/brand-netease.png" alt="网易云音乐"></span>
                     <div>
                         <h1>网易云音乐</h1>
                         <div class="app-sub">歌单 · 搜索 · 自动下载</div>
@@ -250,26 +253,26 @@
             </header>
 
             <!-- 登录面板 -->
-            <div id="ncm-login-panel" class="ncm-login" hidden>
-                <div class="ncm-login-hero">
-                    <div class="hero-art"><i class="bi bi-cloud-fill"></i><i class="bi bi-music-note-beamed n1"></i><i class="bi bi-music-note n2"></i></div>
+            <div id="ncm-login-panel" class="login-stage ncm" hidden>
+                <div class="login-hero">
+                    <div class="hero-art ncm"><img src="/static/img/brand-netease.png" alt="网易云音乐"></div>
                     <h2>登录网易云音乐</h2>
                     <p>登录后即可浏览歌单、搜索下载，并监控歌单自动下载新歌。<br>登录态只保存在你自己的 <code>data/ncm_cookie.json</code>。</p>
                 </div>
-                <div class="ncm-login-card">
+                <div class="login-panel">
                     <div class="seg-tabs" id="ncm-login-tabs" role="tablist">
                         <button type="button" data-mode="qr" role="tab"><i class="bi bi-qr-code-scan"></i> 扫码</button>
                         <button type="button" data-mode="phone" role="tab"><i class="bi bi-phone"></i> 手机号</button>
                         <button type="button" data-mode="cookie" role="tab"><i class="bi bi-key"></i> Cookie</button>
                     </div>
 
-                    <div class="ncm-login-pane" data-pane="qr">
+                    <div class="login-pane" data-pane="qr">
                         <div id="ncm-qr" class="qr-box"></div>
                         <div id="ncm-qr-msg" class="qr-msg">正在生成二维码…</div>
                         <div class="text-soft small mt-1">扫码被风控时，可以改用 <a href="#" data-goto="phone">手机号</a> 或 <a href="#" data-goto="cookie">Cookie</a> 登录</div>
                     </div>
 
-                    <form class="ncm-login-pane" data-pane="phone" id="ncm-phone-form" hidden autocomplete="on">
+                    <form class="login-pane" data-pane="phone" id="ncm-phone-form" hidden autocomplete="on">
                         <label class="form-label">手机号</label>
                         <div class="input-group mb-3">
                             <span class="input-group-text">+</span>
@@ -295,7 +298,7 @@
                         <div class="form-text mt-2">先走网页接口，遇到风控时自动改走 PC 客户端接口。如果还是被拦截，可以稍后重试或改用 Cookie 登录。</div>
                     </form>
 
-                    <form class="ncm-login-pane" data-pane="cookie" id="ncm-cookie-form" hidden>
+                    <form class="login-pane" data-pane="cookie" id="ncm-cookie-form" hidden>
                         <label class="form-label">Cookie / MUSIC_U</label>
                         <textarea id="ncm-cookie" class="form-control mb-2" rows="4" placeholder="MUSIC_U=xxxx; __csrf=xxxx（也可以只粘贴 MUSIC_U 的值）"></textarea>
                         <ol class="cookie-steps">
@@ -404,7 +407,7 @@
                 <section class="cfg-card" id="cfg-location">
                     <div class="cfg-card-head">
                         <span class="cfg-ico"><i class="bi bi-folder2-open"></i></span>
-                        <div><h3>保存位置</h3><p>容器内路径，对应你挂载的 /app/downloads</p></div>
+                        <div><h3>保存位置</h3><p>下载文件的保存目录（Docker 部署对应挂载的 /app/downloads，飞牛原生安装就是宿主机路径）</p></div>
                         <span class="scope-tag both">两个平台</span>
                     </div>
                     <div class="cfg-row">

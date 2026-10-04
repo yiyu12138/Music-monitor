@@ -79,7 +79,7 @@
             b.classList.toggle('active', on);
             b.setAttribute('aria-selected', on ? 'true' : 'false');
         });
-        document.querySelectorAll('.ncm-login-pane').forEach(p => { p.hidden = p.dataset.pane !== mode; });
+        document.querySelectorAll('#ncm-login-panel .login-pane').forEach(p => { p.hidden = p.dataset.pane !== mode; });
         if (mode === 'qr') startQr(); else stopQr();
     }
 

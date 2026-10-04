@@ -1,5 +1,5 @@
 appname               = music-monitor
-version               = 1.1.0
+version               = 1.2.0
 display_name          = 音乐下载器
 desc                  = 自托管的音乐歌单监控下载器：登录 QQ 音乐 / 网易云音乐，浏览歌单、搜索、在线试听、下载歌曲，监控歌单自动下载新歌，并自动写入标签、封面与歌词。开源地址：https://github.com/yiyu12138/Music-monitor
 platform              = x86

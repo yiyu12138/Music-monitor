@@ -261,6 +261,10 @@ body.has-player .app-main > .container { padding-bottom: calc(var(--player-h) + 
     transition: all .2s ease;
 }
 
+/* 平台图标用官方品牌图，不再用自绘图标 */
+.nav-ico img { display: block; width: 26px; height: 26px; border-radius: 7px; }
+.nav-ico:has(img) { background: transparent; }
+
 .side-links .nav-link:hover { background: var(--surface-3); color: var(--text); }
 
 .side-links .nav-link.active {
@@ -273,6 +277,15 @@ body.has-player .app-main > .container { padding-bottom: calc(var(--player-h) + 
     background: var(--nav-c);
     color: #fff;
     box-shadow: 0 6px 16px -4px color-mix(in srgb, var(--nav-c) 70%, transparent);
+}
+
+.side-links .nav-link.active .nav-ico:has(img) {
+    background: transparent;
+    box-shadow: none;
+}
+
+.side-links .nav-link.active .nav-ico img {
+    box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--nav-c) 85%, transparent);
 }
 
 .side-links .nav-link.active::after {
@@ -405,8 +418,8 @@ body.has-player .app-main > .container { padding-bottom: calc(var(--player-h) + 
     color: #fff;
     font-size: 1.25rem;
 }
-.platform-badge.qq { background: linear-gradient(135deg, #34d399, #10b981 55%, #059669); box-shadow: 0 10px 24px -10px rgba(16, 185, 129, .8); }
-.platform-badge.ncm { background: linear-gradient(135deg, #ff6b7e, #ec2c43 55%, #b9172b); box-shadow: 0 10px 24px -10px rgba(236, 44, 67, .8); }
+.platform-badge.brand { background: none; box-shadow: none; overflow: hidden; }
+.platform-badge.brand img { display: block; width: 100%; height: 100%; border-radius: 13px; box-shadow: 0 8px 20px -10px rgba(20, 26, 45, .45); }
 
 .user-area { display: flex; align-items: center; gap: .55rem; flex-wrap: nowrap; justify-content: flex-end; min-width: 0; }
 
@@ -875,36 +888,17 @@ body.has-player .main-layout { height: calc(100vh - 128px - var(--player-h)); }
 .sk-l2 { height: 9px; width: 35%; }
 @keyframes sk { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 
-/* ---------- QQ 登录卡片 ---------- */
-.login-sheet { display: contents; }
-.login-card {
-    position: relative;
-    display: flex;
-    align-items: center;
-    gap: 1.4rem;
-    max-width: 560px;
-    margin: 0 auto;
-    padding: 1.3rem 1.5rem;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-lg);
-    animation: page-in .25s ease;
-}
-.login-card h5 { font-weight: 800; margin-bottom: .35rem; }
-.login-card p { margin-bottom: .2rem; color: var(--text-2); }
-.login-close { position: absolute; top: .9rem; right: .9rem; }
-.qr-frame {
-    flex: 0 0 auto;
-    padding: 10px;
-    border-radius: 16px;
-    background: #fff;
-    box-shadow: 0 0 0 1px var(--border), 0 12px 30px -14px color-mix(in srgb, var(--accent) 70%, transparent);
-}
-.qr-frame img { display: block; width: 168px; height: 168px; }
+/* ---------- 登录面板（QQ 音乐 / 网易云共用同一套结构） ---------- */
+#qq-login-stage { display: none; }
+body.qq-login-open #qq-login-stage { display: grid; }
+
+.login-pane.qr-pane { text-align: center; padding: .4rem 0 .2rem; }
+.login-pane .form-label { font-size: .78rem; }
+.login-pane .btn w-100 { width: 100%; }
+#qrcode-img { display: block; width: 176px; height: 176px; }
 
 /* ---------- 网易云登录 ---------- */
-.ncm-login {
+.login-stage {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
     gap: 2rem;
@@ -914,37 +908,28 @@ body.has-player .main-layout { height: calc(100vh - 128px - var(--player-h)); }
     margin: 2vh auto 0;
     padding: 2rem;
     background:
-        radial-gradient(500px 300px at 0% 0%, color-mix(in srgb, var(--ncm) 16%, transparent), transparent 70%),
+        radial-gradient(500px 300px at 0% 0%, color-mix(in srgb, var(--accent) 15%, transparent), transparent 70%),
         var(--surface);
     border: 1px solid var(--border);
     border-radius: 28px;
     box-shadow: var(--shadow-lg);
 }
-.ncm-login-hero h2 { font-weight: 800; font-size: 1.7rem; margin: 1.2rem 0 .6rem; }
-.ncm-login-hero p { color: var(--text-2); line-height: 1.75; margin: 0; }
+.login-hero h2 { font-weight: 800; font-size: 1.7rem; margin: 1.2rem 0 .6rem; }
+.login-hero p { color: var(--text-2); line-height: 1.75; margin: 0; }
 .hero-art {
-    position: relative;
     display: grid;
     place-items: center;
     width: 96px;
     height: 96px;
-    border-radius: 30px;
-    color: #fff;
-    font-size: 2.6rem;
-    background: linear-gradient(135deg, #ff6b7e, #ec2c43 55%, #b9172b);
-    box-shadow: 0 22px 44px -16px rgba(236, 44, 67, .8);
+    border-radius: 26px;
+    overflow: hidden;
+    background: var(--surface);
 }
-.hero-art .n1, .hero-art .n2 {
-    position: absolute;
-    color: var(--ncm);
-    font-size: 1.3rem;
-    animation: float-note 3.2s ease-in-out infinite;
-}
-.hero-art .n1 { right: -26px; top: 2px; }
-.hero-art .n2 { right: -10px; bottom: -14px; font-size: 1rem; animation-delay: 1s; }
-@keyframes float-note { 0%, 100% { transform: translateY(0) rotate(-6deg); opacity: .9; } 50% { transform: translateY(-8px) rotate(6deg); opacity: .5; } }
+.hero-art img { display: block; width: 100%; height: 100%; border-radius: inherit; }
+.hero-art.qq { box-shadow: 0 22px 44px -18px color-mix(in srgb, var(--qq) 75%, transparent); }
+.hero-art.ncm { box-shadow: 0 22px 44px -18px color-mix(in srgb, var(--ncm) 75%, transparent); }
 
-.ncm-login-card {
+.login-panel {
     padding: 1.2rem;
     border-radius: 22px;
     background: var(--surface-2);
@@ -974,9 +959,9 @@ body.has-player .main-layout { height: calc(100vh - 128px - var(--player-h)); }
     transition: all .18s ease;
 }
 .seg-tabs button:hover { color: var(--text); }
-.seg-tabs button.active { background: var(--surface); color: var(--ncm); box-shadow: var(--shadow); }
-.ncm-login-pane { animation: page-in .2s ease; }
-.ncm-login-pane[data-pane="qr"] { text-align: center; padding: .4rem 0 .2rem; }
+.seg-tabs button.active { background: var(--surface); color: var(--accent); box-shadow: var(--shadow); }
+.login-pane { animation: page-in .2s ease; }
+.login-pane[data-pane="qr"] { text-align: center; padding: .4rem 0 .2rem; }
 .qr-box {
     position: relative;
     display: grid;
@@ -987,7 +972,7 @@ body.has-player .main-layout { height: calc(100vh - 128px - var(--player-h)); }
     padding: 10px;
     border-radius: 18px;
     background: #fff;
-    box-shadow: 0 0 0 1px var(--border), 0 16px 34px -18px rgba(236, 44, 67, .7);
+    box-shadow: 0 0 0 1px var(--border), 0 16px 34px -18px color-mix(in srgb, var(--accent) 65%, transparent);
     color: #6b7280;
     font-size: 1.6rem;
 }
@@ -1446,10 +1431,10 @@ body.has-player .page-logs .log-panel { height: calc(100vh - 190px - var(--playe
     .task-pane { flex-direction: row !important; }
     .task-section { flex: 1 1 0; min-width: 0; }
     .task-section > .content-box { flex: 0 0 auto; height: 36vh; min-height: 180px; }
-    .ncm-login { grid-template-columns: 1fr; padding: 1.4rem; gap: 1.2rem; }
-    .ncm-login-hero { text-align: center; }
+    .login-stage { grid-template-columns: 1fr; padding: 1.4rem; gap: 1.2rem; }
+    .login-hero { text-align: center; }
     .hero-art { margin: 0 auto; width: 76px; height: 76px; font-size: 2rem; border-radius: 24px; }
-    .ncm-login-hero h2 { font-size: 1.35rem; margin-top: .9rem; }
+    .login-hero h2 { font-size: 1.35rem; margin-top: .9rem; }
     .toolbar-title .text-truncate { max-width: 40vw; }
 }
 
@@ -1525,8 +1510,9 @@ body.has-player .page-logs .log-panel { height: calc(100vh - 190px - var(--playe
     .player-cover-wrap { width: 40px; height: 40px; }
     .player-toggle { width: 40px; height: 40px; font-size: 1.15rem; }
 
-    .login-card { flex-direction: column; text-align: center; padding: 1.2rem; }
-    .ncm-login { margin-top: 0; padding: 1rem; border-radius: 20px; }
-    .ncm-login-hero p { font-size: .82rem; }
+    .login-hero { text-align: center; }
+    .login-hero .hero-art { margin: 0 auto; }
+    .login-stage { margin-top: 0; padding: 1rem; border-radius: 20px; }
+    .login-hero p { font-size: .82rem; }
     .page-logs .log-panel { height: calc(100vh - 220px); }
 }
