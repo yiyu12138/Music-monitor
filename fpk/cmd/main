@@ -9,7 +9,8 @@ APP_DIR="${TRIM_APPDEST:-/var/apps/music-monitor/target}"
 PY="${FNOS_PYTHON:-/var/apps/python312/target/bin/python3}"
 PORT="${wizard_port:-6696}"
 TZ_VAL="${wizard_tz:-Asia/Shanghai}"
-RUN_DIR="${wizard_data_dir:-/var/apps/music-monitor/var/data}"
+DATA_DIR="${wizard_data_dir:-/var/apps/music-monitor/var/data}"
+RUN_DIR="${PKG_VAR}/run"
 PID_FILE="${PKG_VAR}/app.pid"
 LOG_FILE="${PKG_VAR}/app.log"
 
@@ -36,12 +37,14 @@ start_app() {
     [ -f "${APP_DIR}/server/main.py" ] || fail "应用文件不完整，请重新安装。"
     pid_running && return 0
 
-    mkdir -p "${RUN_DIR}/data" "${RUN_DIR}/downloads" "${PKG_VAR}" 2>/dev/null || true
-    # 应用用相对路径读取模板与静态文件，这里软链到运行目录
+    mkdir -p "${DATA_DIR}" "${RUN_DIR}/downloads" "${PKG_VAR}" 2>/dev/null || true
+    # 应用以「当前目录/data」存放配置与登录态：把 data 软链到向导里的应用数据目录，
+    # 这样用户选定的目录里直接就是 config.json、cookie、任务历史等文件
+    ln -sfn "${DATA_DIR}" "${RUN_DIR}/data"
     ln -sfn "${APP_DIR}/server/templates" "${RUN_DIR}/templates"
     ln -sfn "${APP_DIR}/server/static" "${RUN_DIR}/static"
 
-    log "启动: 端口 ${PORT}，数据目录 ${RUN_DIR}"
+    log "启动: 端口 ${PORT}，数据目录 ${DATA_DIR}"
     (
         cd "${RUN_DIR}" || exit 1
         TZ="${TZ_VAL}" \

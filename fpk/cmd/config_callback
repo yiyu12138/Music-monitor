@@ -8,7 +8,7 @@ DATA_DIR="${wizard_data_dir:-/var/apps/music-monitor/var/data}"
 MUSIC_DIR="${wizard_music_dir:-/vol1/1000/music}"
 LOG="${PKG_VAR}/config.log"
 
-mkdir -p "${DATA_DIR}/data" 2>/dev/null || true
+mkdir -p "${DATA_DIR}" 2>/dev/null || true
 "${PY}" "${HERE}/seed_config.py" "${DATA_DIR}" "${MUSIC_DIR}" >> "${LOG}" 2>&1 || true
 "${HERE}/main" stop >> "${LOG}" 2>&1 || true
 "${HERE}/main" start >> "${LOG}" 2>&1 || exit 1

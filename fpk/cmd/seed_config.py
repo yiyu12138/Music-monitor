@@ -14,9 +14,8 @@ def main():
         return 1
     data_root, music_dir = sys.argv[1], sys.argv[2]
     interval = int(sys.argv[3]) if len(sys.argv) > 3 and sys.argv[3].isdigit() else None
-    data_dir = os.path.join(data_root, "data")
-    os.makedirs(data_dir, exist_ok=True)
-    path = os.path.join(data_dir, "config.json")
+    os.makedirs(data_root, exist_ok=True)
+    path = os.path.join(data_root, "config.json")
     cfg = {}
     if os.path.exists(path):
         try:
