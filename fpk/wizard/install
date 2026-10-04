@@ -1,0 +1,47 @@
+[
+  {
+    "stepTitle": "访问与存储",
+    "items": [
+      {
+        "type": "tips",
+        "helpText": "音乐下载器会以 Docker 容器方式运行。安装前请确认 Docker 已启用；若已有同名容器占用下列端口，请先停止它。"
+      },
+      {
+        "type": "text",
+        "field": "wizard_port",
+        "label": "访问端口",
+        "initValue": "6696",
+        "rules": [
+          { "required": true, "message": "请输入访问端口" },
+          { "pattern": "^[0-9]+$", "message": "端口只能填写数字" }
+        ]
+      },
+      {
+        "type": "text",
+        "field": "wizard_music_dir",
+        "label": "音乐保存目录（宿主机路径）",
+        "initValue": "/vol1/1000/music",
+        "rules": [
+          { "required": true, "message": "请输入音乐保存目录" },
+          { "pattern": "^/", "message": "请填写绝对路径，例如 /vol1/1000/music" }
+        ]
+      },
+      {
+        "type": "text",
+        "field": "wizard_data_dir",
+        "label": "应用数据目录（登录态 / 配置 / 任务历史）",
+        "initValue": "/var/apps/music-monitor/shares/data",
+        "rules": [
+          { "required": true, "message": "请输入应用数据目录" },
+          { "pattern": "^/", "message": "请填写绝对路径" }
+        ]
+      },
+      {
+        "type": "text",
+        "field": "wizard_tz",
+        "label": "时区",
+        "initValue": "Asia/Shanghai"
+      }
+    ]
+  }
+]

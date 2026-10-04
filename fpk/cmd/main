@@ -1,0 +1,48 @@
+#!/bin/bash
+# Music Monitor · 生命周期脚本
+# 容器由应用中心按 config/resource 里的 docker-project 用 docker compose 管理，
+# 这里只做「首次导入镜像」的兜底和运行状态上报。
+
+set -u
+
+APP_DIR="${TRIM_APPDEST:-}"
+VAR_DIR="${TRIM_PKGVAR:-/tmp}"
+LOG="${VAR_DIR}/main.log"
+IMAGE="music-monitor:1.1.0"
+CONTAINER="music-monitor"
+IMAGE_TAR="${APP_DIR}/docker/music-monitor-image.tar.gz"
+
+log() { printf '%s - %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1" >> "${LOG}" 2>/dev/null || true; }
+
+ensure_image() {
+    if docker image inspect "${IMAGE}" >/dev/null 2>&1; then
+        return 0
+    fi
+    if [ -f "${IMAGE_TAR}" ]; then
+        log "本地缺少镜像 ${IMAGE}，从 fpk 内置镜像包导入"
+        gzip -dc "${IMAGE_TAR}" | docker load >> "${LOG}" 2>&1 || return 1
+    fi
+    docker image inspect "${IMAGE}" >/dev/null 2>&1
+}
+
+running() {
+    [ "$(docker inspect -f '{{.State.Running}}' "${CONTAINER}" 2>/dev/null)" = "true" ]
+}
+
+case "${1:-}" in
+    start)
+        ensure_image || { echo "镜像 ${IMAGE} 不可用，无法启动。" > "${TRIM_TEMP_LOGFILE:-/dev/stderr}"; log "镜像不可用"; exit 1; }
+        log "启动检查通过"
+        exit 0
+        ;;
+    stop)
+        # 容器启停由应用中心负责
+        exit 0
+        ;;
+    status)
+        running && exit 0 || exit 3
+        ;;
+    *)
+        exit 1
+        ;;
+esac

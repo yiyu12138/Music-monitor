@@ -1,0 +1,8 @@
+#!/bin/bash
+# 安装前检查：Docker 是否可用
+set -u
+if ! command -v docker >/dev/null 2>&1; then
+    echo "未检测到 Docker，请先在飞牛「Docker」中启用容器功能。" > "${TRIM_TEMP_LOGFILE:-/dev/stderr}"
+    exit 1
+fi
+exit 0

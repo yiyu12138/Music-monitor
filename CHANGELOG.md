@@ -2,7 +2,11 @@
 
 > 最新版本：**v1.1.0**。v0.9.3 及更早的版本记录来自上游项目 [huohen92/QQMusic-monitor](https://github.com/huohen92/QQMusic-monitor)。
 
-## v1.1.0
+## v1.1.0（含飞牛 fpk 打包）
+
+- 新增 `fpk/` 打包工程与 `fpk/build.sh`：一条命令产出飞牛 fnOS 可直接安装的 `.fpk`（内置 Docker 镜像，离线可装），详见 [fpk/README.md](fpk/README.md)
+- 安装向导支持设置访问端口、音乐保存目录、应用数据目录与时区；应用设置里改动后容器自动重建
+
 
 > 两个平台的设置合并为一个配置页，网易云下载音质固定为最高。
 

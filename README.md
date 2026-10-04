@@ -62,6 +62,25 @@
 - 支持企业微信机器人、Bark、自定义 Webhook，推送下载成功、下载失败、歌单更新、歌单下载结果汇总、登录失效等事件。网易云的通知会带上 `[网易云]` 前缀。
 - 内置日志页（保留最近 3000 条），可以只看警告和错误。
 
+## 📦 飞牛 fnOS 应用包（fpk）
+
+在飞牛 NAS 上可以把它作为原生应用安装，跟其它应用一样在「应用中心」里启动、设置和卸载：
+
+```bash
+# 在 NAS 上（需要 Docker 与飞牛自带的 fnpack）
+git clone https://github.com/yiyu12138/Music-monitor.git
+cd Music-monitor
+bash fpk/build.sh          # 产出 music-monitor_<版本>_x86.fpk（约 90MB，已内置镜像）
+```
+
+然后打开飞牛「应用中心」→「手动安装」，选择生成的 `.fpk`，按向导填写访问端口（默认 6696）、音乐保存目录（默认 `/vol1/1000/music`）、应用数据目录与时区即可。
+
+- 安装后可在应用设置里改端口和目录，保存后容器会自动按新配置重建。
+- 内置了 Docker 镜像，安装时不需要联网构建。
+- 卸载会删除容器和镜像，但**不会删除数据目录和音乐目录**。
+- 打包细节与目录说明见 [fpk/README.md](fpk/README.md)。
+- 从手动 Docker 部署迁移：把原来的 `data/` 内容拷进 `/var/apps/music-monitor/shares/data`，登录态与监控配置都能保留；装之前先 `docker rm -f music-monitor`，避免端口和容器名冲突。
+
 ## 🚀 Docker 部署
 
 ### 方式一：从源码构建（推荐）

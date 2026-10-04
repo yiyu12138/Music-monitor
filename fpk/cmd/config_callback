@@ -1,0 +1,16 @@
+#!/bin/bash
+# 用户在应用设置页修改端口/目录后，按新环境变量重建容器
+set -u
+
+APP_DIR="${TRIM_APPDEST:-}"
+VAR_DIR="${TRIM_PKGVAR:-/tmp}"
+LOG="${VAR_DIR}/config.log"
+COMPOSE="${APP_DIR}/docker/docker-compose.yaml"
+
+log() { printf '%s - %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1" >> "${LOG}" 2>/dev/null || true; }
+
+[ -f "${COMPOSE}" ] || { log "找不到 compose 文件: ${COMPOSE}"; exit 1; }
+
+log "按新配置重建容器（端口 ${wizard_port:-6696}）"
+docker compose -f "${COMPOSE}" up -d >> "${LOG}" 2>&1 || { log "重建失败"; exit 1; }
+exit 0

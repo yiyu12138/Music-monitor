@@ -1,0 +1,35 @@
+#!/bin/bash
+# 从 fpk 内置的镜像包导入 music-monitor 镜像；数据目录不存在时创建。
+# ${1:-} = "force" 时无条件重新导入（升级场景）
+
+set -u
+
+APP_DIR="${TRIM_APPDEST:-}"
+VAR_DIR="${TRIM_PKGVAR:-/tmp}"
+LOG="${VAR_DIR}/install.log"
+IMAGE="music-monitor:1.1.0"
+IMAGE_TAR="${APP_DIR}/docker/music-monitor-image.tar.gz"
+DATA_DIR="${wizard_data_dir:-/var/apps/music-monitor/shares/data}"
+MUSIC_DIR="${wizard_music_dir:-/vol1/1000/music}"
+
+log() { printf '%s - %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1" >> "${LOG}" 2>/dev/null || true; }
+
+mkdir -p "${DATA_DIR}" 2>/dev/null || log "创建数据目录失败: ${DATA_DIR}"
+[ -d "${MUSIC_DIR}" ] || log "音乐目录不存在（挂载时 Docker 会自动创建）: ${MUSIC_DIR}"
+
+FORCE="${1:-}"
+if [ -f "${IMAGE_TAR}" ]; then
+    if [ "${FORCE}" = "force" ] || ! docker image inspect "${IMAGE}" >/dev/null 2>&1; then
+        log "导入镜像 ${IMAGE}（${FORCE:-auto}）"
+        if ! gzip -dc "${IMAGE_TAR}" | docker load >> "${LOG}" 2>&1; then
+            echo "镜像导入失败，请查看 ${LOG}" > "${TRIM_TEMP_LOGFILE:-/dev/stderr}"
+            exit 1
+        fi
+    else
+        log "镜像 ${IMAGE} 已存在，跳过导入"
+    fi
+else
+    log "未找到内置镜像包 ${IMAGE_TAR}"
+fi
+
+exit 0
