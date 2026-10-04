@@ -5,7 +5,7 @@ from typing import Dict, Any
 CONFIG_FILE = os.path.join("data", "config.json")
 
 # 应用版本与项目主页（配置页展示用；升级版本只改这里）
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.2.1"
 GITHUB_URL = "https://github.com/yiyu12138/Music-monitor"
 
 # 默认配置

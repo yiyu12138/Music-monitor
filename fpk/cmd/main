@@ -32,10 +32,45 @@ port_ready() {
     curl -fsS -o /dev/null --max-time 3 "http://127.0.0.1:${PORT}/" 2>/dev/null
 }
 
+# 端口是否已被其它程序占用（避免启动后 uvicorn 绑定失败、应用被系统判定为「停用」）
+port_in_use() {
+    if command -v ss >/dev/null 2>&1; then
+        if ss -ltn 2>/dev/null | awk '{print $4}' | grep -qE "[:.]${PORT}$"; then
+            return 0
+        fi
+        return 1
+    fi
+    local hex
+    hex="$(printf '%04X' "${PORT}")"
+    awk 'NR>1 {print $2}' /proc/net/tcp /proc/net/tcp6 2>/dev/null | grep -qiE "[:.]${hex}$"
+}
+
+# 占用该端口的 Docker 容器名（用于给出更明确的提示）
+port_holders() {
+    command -v docker >/dev/null 2>&1 || return 0
+    docker ps --format '{{.Names}}' 2>/dev/null | while read -r name; do
+        [ -n "${name}" ] || continue
+        if docker port "${name}" 2>/dev/null | grep -qE ":${PORT}$"; then
+            printf '%s ' "${name}"
+        fi
+    done
+}
+
 start_app() {
     [ -x "${PY}" ] || fail "未找到飞牛 Python 运行时 ${PY}，请先在应用中心安装 python312。"
     [ -f "${APP_DIR}/server/main.py" ] || fail "应用文件不完整，请重新安装。"
     pid_running && return 0
+
+    # 端口被占用时直接给出可操作的原因，而不是启动后静默退出
+    if port_in_use; then
+        holders="$(port_holders)"
+        msg="端口 ${PORT} 已被其它程序占用"
+        if [ -n "${holders}" ]; then
+            msg="${msg}（占用它的 Docker 容器：${holders}）"
+        fi
+        msg="${msg}，应用无法启动。请先停止占用的程序（例如 docker rm -f ${holders:-<容器名>} / sudo systemctl stop <服务>），或在飞牛「应用中心 → 音乐下载器 → 应用设置」里把访问端口改成其它端口后重试。"
+        fail "${msg}"
+    fi
 
     mkdir -p "${DATA_DIR}" "${RUN_DIR}/downloads" "${PKG_VAR}" 2>/dev/null || true
     # 应用以「当前目录/data」存放配置与登录态：把 data 软链到向导里的应用数据目录，
@@ -55,13 +90,14 @@ start_app() {
     )
 
     for _ in $(seq 1 45); do
-        if port_ready; then
-            log "启动成功"
-            return 0
-        fi
+        # 先确认是我们自己的进程活着，再看端口（否则会被别的程序占用的端口骗过去）
         if ! pid_running; then
             tail -n 20 "${LOG_FILE}" >> "${TRIM_TEMP_LOGFILE:-/dev/stderr}" 2>/dev/null || true
             fail "进程启动后立即退出，请查看 ${LOG_FILE}"
+        fi
+        if port_ready && pid_running; then
+            log "启动成功"
+            return 0
         fi
         sleep 1
     done
