@@ -1,48 +1,94 @@
 #!/bin/bash
-# Music Monitor · 生命周期脚本
-# 容器由应用中心按 config/resource 里的 docker-project 用 docker compose 管理，
-# 这里只做「首次导入镜像」的兜底和运行状态上报。
+# Music Monitor · 原生应用生命周期脚本
+# 直接用飞牛自带的 python312 运行时启动 uvicorn，不使用 Docker。
 
 set -u
 
-APP_DIR="${TRIM_APPDEST:-}"
-VAR_DIR="${TRIM_PKGVAR:-/tmp}"
-LOG="${VAR_DIR}/main.log"
-IMAGE="music-monitor:1.1.0"
-CONTAINER="music-monitor"
-IMAGE_TAR="${APP_DIR}/docker/music-monitor-image.tar.gz"
+PKG_VAR="${TRIM_PKGVAR:-/var/apps/music-monitor/var}"
+APP_DIR="${TRIM_APPDEST:-/var/apps/music-monitor/target}"
+PY="${FNOS_PYTHON:-/var/apps/python312/target/bin/python3}"
+PORT="${wizard_port:-6696}"
+TZ_VAL="${wizard_tz:-Asia/Shanghai}"
+RUN_DIR="${wizard_data_dir:-/var/apps/music-monitor/var/data}"
+PID_FILE="${PKG_VAR}/app.pid"
+LOG_FILE="${PKG_VAR}/app.log"
 
-log() { printf '%s - %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1" >> "${LOG}" 2>/dev/null || true; }
-
-ensure_image() {
-    if docker image inspect "${IMAGE}" >/dev/null 2>&1; then
-        return 0
-    fi
-    if [ -f "${IMAGE_TAR}" ]; then
-        log "本地缺少镜像 ${IMAGE}，从 fpk 内置镜像包导入"
-        gzip -dc "${IMAGE_TAR}" | docker load >> "${LOG}" 2>&1 || return 1
-    fi
-    docker image inspect "${IMAGE}" >/dev/null 2>&1
+log() { printf '%s - %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1" >> "${LOG_FILE}" 2>/dev/null || true; }
+fail() {
+    printf '%s\n' "$1" > "${TRIM_TEMP_LOGFILE:-/dev/stderr}" 2>/dev/null || true
+    log "失败: $1"
+    exit 1
 }
 
-running() {
-    [ "$(docker inspect -f '{{.State.Running}}' "${CONTAINER}" 2>/dev/null)" = "true" ]
+pid_running() {
+    [ -f "${PID_FILE}" ] || return 1
+    local p
+    p="$(head -n 1 "${PID_FILE}" 2>/dev/null | tr -d '[:space:]')"
+    [ -n "${p}" ] && kill -0 "${p}" 2>/dev/null
+}
+
+port_ready() {
+    curl -fsS -o /dev/null --max-time 3 "http://127.0.0.1:${PORT}/" 2>/dev/null
+}
+
+start_app() {
+    [ -x "${PY}" ] || fail "未找到飞牛 Python 运行时 ${PY}，请先在应用中心安装 python312。"
+    [ -f "${APP_DIR}/server/main.py" ] || fail "应用文件不完整，请重新安装。"
+    pid_running && return 0
+
+    mkdir -p "${RUN_DIR}/data" "${RUN_DIR}/downloads" "${PKG_VAR}" 2>/dev/null || true
+    # 应用用相对路径读取模板与静态文件，这里软链到运行目录
+    ln -sfn "${APP_DIR}/server/templates" "${RUN_DIR}/templates"
+    ln -sfn "${APP_DIR}/server/static" "${RUN_DIR}/static"
+
+    log "启动: 端口 ${PORT}，数据目录 ${RUN_DIR}"
+    (
+        cd "${RUN_DIR}" || exit 1
+        TZ="${TZ_VAL}" \
+        PYTHONPATH="${APP_DIR}/server:${APP_DIR}/pylib" \
+        PYTHONUNBUFFERED=1 \
+        nohup "${PY}" -m uvicorn main:app --host 0.0.0.0 --port "${PORT}" >>"${LOG_FILE}" 2>&1 &
+        echo $! > "${PID_FILE}"
+    )
+
+    for _ in $(seq 1 45); do
+        if port_ready; then
+            log "启动成功"
+            return 0
+        fi
+        if ! pid_running; then
+            tail -n 20 "${LOG_FILE}" >> "${TRIM_TEMP_LOGFILE:-/dev/stderr}" 2>/dev/null || true
+            fail "进程启动后立即退出，请查看 ${LOG_FILE}"
+        fi
+        sleep 1
+    done
+    tail -n 20 "${LOG_FILE}" >> "${TRIM_TEMP_LOGFILE:-/dev/stderr}" 2>/dev/null || true
+    fail "启动超时（45 秒内端口 ${PORT} 未就绪）"
+}
+
+stop_app() {
+    if ! pid_running; then
+        rm -f "${PID_FILE}"
+        return 0
+    fi
+    local p
+    p="$(head -n 1 "${PID_FILE}" | tr -d '[:space:]')"
+    log "停止进程 ${p}"
+    kill "${p}" 2>/dev/null || true
+    for _ in $(seq 1 20); do
+        kill -0 "${p}" 2>/dev/null || break
+        sleep 1
+    done
+    kill -0 "${p}" 2>/dev/null && kill -9 "${p}" 2>/dev/null
+    rm -f "${PID_FILE}"
+    return 0
 }
 
 case "${1:-}" in
-    start)
-        ensure_image || { echo "镜像 ${IMAGE} 不可用，无法启动。" > "${TRIM_TEMP_LOGFILE:-/dev/stderr}"; log "镜像不可用"; exit 1; }
-        log "启动检查通过"
-        exit 0
-        ;;
-    stop)
-        # 容器启停由应用中心负责
-        exit 0
-        ;;
+    start) start_app ;;
+    stop)  stop_app ;;
     status)
-        running && exit 0 || exit 3
+        if pid_running && port_ready; then exit 0; else exit 3; fi
         ;;
-    *)
-        exit 1
-        ;;
+    *) exit 1 ;;
 esac

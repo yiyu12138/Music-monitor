@@ -1,3 +1,2 @@
-# 构建产物（镜像包很大，不入库）
+# 构建产物
 *.fpk
-app/docker/music-monitor-image.tar.gz

@@ -1,16 +1,15 @@
 #!/bin/bash
-# 用户在应用设置页修改端口/目录后，按新环境变量重建容器
+# 用户在应用设置里改了端口/目录：写入配置并重启服务
 set -u
+HERE="$(cd "$(dirname "$0")" && pwd)"
+PKG_VAR="${TRIM_PKGVAR:-/var/apps/music-monitor/var}"
+PY="${FNOS_PYTHON:-/var/apps/python312/target/bin/python3}"
+DATA_DIR="${wizard_data_dir:-/var/apps/music-monitor/var/data}"
+MUSIC_DIR="${wizard_music_dir:-/vol1/1000/music}"
+LOG="${PKG_VAR}/config.log"
 
-APP_DIR="${TRIM_APPDEST:-}"
-VAR_DIR="${TRIM_PKGVAR:-/tmp}"
-LOG="${VAR_DIR}/config.log"
-COMPOSE="${APP_DIR}/docker/docker-compose.yaml"
-
-log() { printf '%s - %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1" >> "${LOG}" 2>/dev/null || true; }
-
-[ -f "${COMPOSE}" ] || { log "找不到 compose 文件: ${COMPOSE}"; exit 1; }
-
-log "按新配置重建容器（端口 ${wizard_port:-6696}）"
-docker compose -f "${COMPOSE}" up -d >> "${LOG}" 2>&1 || { log "重建失败"; exit 1; }
+mkdir -p "${DATA_DIR}/data" 2>/dev/null || true
+"${PY}" "${HERE}/seed_config.py" "${DATA_DIR}" "${MUSIC_DIR}" >> "${LOG}" 2>&1 || true
+"${HERE}/main" stop >> "${LOG}" 2>&1 || true
+"${HERE}/main" start >> "${LOG}" 2>&1 || exit 1
 exit 0

@@ -4,7 +4,7 @@
     "items": [
       {
         "type": "tips",
-        "helpText": "音乐下载器会以 Docker 容器方式运行。安装前请确认 Docker 已启用；若已有同名容器占用下列端口，请先停止它。"
+        "helpText": "音乐下载器以飞牛原生服务方式运行（依赖飞牛 Python 3.12 运行时，不使用 Docker）。向导里填写的音乐目录就是实际保存路径。"
       },
       {
         "type": "text",
@@ -19,7 +19,7 @@
       {
         "type": "text",
         "field": "wizard_music_dir",
-        "label": "音乐保存目录（宿主机路径）",
+        "label": "音乐保存目录（宿主机绝对路径）",
         "initValue": "/vol1/1000/music",
         "rules": [
           { "required": true, "message": "请输入音乐保存目录" },
@@ -30,7 +30,7 @@
         "type": "text",
         "field": "wizard_data_dir",
         "label": "应用数据目录（登录态 / 配置 / 任务历史）",
-        "initValue": "/var/apps/music-monitor/shares/data",
+        "initValue": "/var/apps/music-monitor/var/data",
         "rules": [
           { "required": true, "message": "请输入应用数据目录" },
           { "pattern": "^/", "message": "请填写绝对路径" }

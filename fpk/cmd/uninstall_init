@@ -1,2 +1,4 @@
 #!/bin/bash
+# 卸载前先停服务
+"$(dirname "$0")/main" stop
 exit 0

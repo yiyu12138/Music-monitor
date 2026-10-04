@@ -1,5 +1,3 @@
 #!/bin/bash
-# 卸载后清理镜像（容器由应用中心停止并移除）。数据目录与音乐目录保留，避免误删用户数据。
-set -u
-docker image rm music-monitor:1.1.0 >/dev/null 2>&1 || true
+# 数据目录与音乐目录保留，避免误删登录态与已下载的音乐
 exit 0

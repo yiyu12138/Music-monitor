@@ -1,17 +1,1 @@
-{
-  "docker-project": {
-    "projects": [
-      {
-        "name": "music-monitor",
-        "path": "docker"
-      }
-    ]
-  },
-  "data-share": {
-    "shares": [
-      {
-        "name": "music-monitor/data"
-      }
-    ]
-  }
-}
+{}
