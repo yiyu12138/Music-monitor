@@ -18,9 +18,22 @@ DOWNLOADS_DIR = "downloads"
 
 # 从配置管理模块获取配置
 from config import config
-# 确保配置值是整数类型
-MAX_CONCURRENT_DOWNLOADS = int(config.get("download.max_concurrent", 5))
-RETRY_INTERVAL_SECONDS = int(config.get("download.retry_interval_seconds", 24 * 3600))  # 默认24小时
+from worker_pool import WorkerPool
+
+
+def retry_interval_seconds() -> int:
+    """限额冷却后的重试间隔（每次实时读取配置，修改后立即生效）"""
+    try:
+        return max(60, int(config.get("download.retry_interval_seconds", 24 * 3600)))
+    except (TypeError, ValueError):
+        return 24 * 3600
+
+
+def max_concurrent() -> int:
+    try:
+        return max(1, min(20, int(config.get("download.max_concurrent", 3))))
+    except (TypeError, ValueError):
+        return 3
 
 # 确保数据目录在启动时存在
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -336,7 +349,7 @@ async def _execute_download(
 
         current_time = int(time.time())
         if current_time >= cooldown_until:
-            cooldown_duration = RETRY_INTERVAL_SECONDS
+            cooldown_duration = retry_interval_seconds()
             new_cooldown_until = current_time + cooldown_duration
             qq_music.set_cooldown_until(cred, new_cooldown_until)
             print(f"触发API限制，该账号冷却至: {time.ctime(new_cooldown_until)}")
@@ -352,36 +365,31 @@ async def _execute_download(
         
     await _save_download_tasks()
 
-async def download_worker():
-    """消费者：从队列中获取并处理下载任务"""
-    while True:
-        try:
-            song_mid, song_name = await song_queue.get()
+async def _process_queue_item(item):
+    """处理队列里的一首歌（由 WorkerPool 调用）"""
+    song_mid, song_name = item
+    task_state = download_tasks.get(song_mid)
+    if not task_state or task_state.get("status") == "cancelled":
+        print(f"任务 {song_name} 已被取消，跳过下载。")
+        return
+    # 从任务状态读取该歌曲的下载目录与下载模式
+    task_dir = task_state.get("download_dir", "")
+    task_playlist_mode = bool(task_state.get("playlist_mode"))
+    await _execute_download(song_mid, song_name, task_dir, task_playlist_mode)
 
-            task_state = download_tasks.get(song_mid)
-            if not task_state or task_state.get("status") == "cancelled":
-                print(f"任务 {song_name} 已被取消，跳过下载。")
-                song_queue.task_done()
-                continue
 
-            # 从任务状态读取该歌曲的下载目录与下载模式
-            task_dir = task_state.get("download_dir", "") if task_state else ""
-            task_playlist_mode = bool(task_state.get("playlist_mode")) if task_state else False
-            await _execute_download(song_mid, song_name, task_dir, task_playlist_mode)
-            song_queue.task_done()
-        except asyncio.CancelledError:
-            break
-        except Exception as e:
-            print(f"下载工作者出错: {e}")
+worker_pool = WorkerPool("QQ音乐", song_queue, _process_queue_item)
+
 
 def start_download_workers():
-    """启动指定数量的后台下载工作者并返回它们的任务对象"""
-    tasks = []
-    for i in range(MAX_CONCURRENT_DOWNLOADS):
-        task = asyncio.create_task(download_worker())
-        tasks.append(task)
-    print(f"已启动 {MAX_CONCURRENT_DOWNLOADS} 个下载工作者。")
-    return tasks
+    """按配置启动下载工作者（之后可通过 worker_pool.resize 实时调整）"""
+    n = worker_pool.resize(max_concurrent())
+    print(f"已启动 {n} 个下载工作者。")
+    return worker_pool
+
+
+async def stop_download_workers():
+    await worker_pool.stop()
 
 async def retry_failed_tasks_periodically():
     """后台任务：定期检查并重试等待中的任务"""
@@ -411,7 +419,7 @@ async def retry_failed_tasks_periodically():
 
 def start_retry_task():
     """在后台启动定时重试任务"""
-    print(f"启动后台定时重试任务，检查间隔为 {RETRY_INTERVAL_SECONDS / 3600:.1f} 小时。")
+    print(f"启动后台定时重试任务，限额冷却时间为 {retry_interval_seconds() / 3600:.1f} 小时。")
     asyncio.create_task(retry_failed_tasks_periodically())
 
 async def add_song_to_queue(

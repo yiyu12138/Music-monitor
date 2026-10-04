@@ -19,8 +19,20 @@ _check_lock = asyncio.Lock()
 
 # 从配置管理模块获取配置
 from config import config
-# 检查间隔（秒），默认为 30 分钟。配置文件里可能是字符串，需转 int
-CHECK_INTERVAL_SECONDS = int(config.get("monitor.check_interval_seconds", 1800))
+def check_interval_seconds() -> int:
+    """歌单检查间隔（QQ 音乐与网易云共用，每轮实时读取配置，修改后下一轮即生效）"""
+    try:
+        return max(60, int(config.get("monitor.check_interval_seconds", 1800)))
+    except (TypeError, ValueError):
+        return 1800
+
+
+_wake = asyncio.Event()
+
+
+def wake_now():
+    """立即触发一次检查（不打乱原有周期）"""
+    _wake.set()
 
 # 结果汇报相关
 REPORT_MAX_SONGS = 50          # 汇报里最多列多少首歌单曲目
@@ -489,7 +501,11 @@ async def monitoring_task():
     """后台监控任务，定期运行"""
     while True:
         await check_playlists_for_updates()
-        await asyncio.sleep(CHECK_INTERVAL_SECONDS)
+        _wake.clear()
+        try:
+            await asyncio.wait_for(_wake.wait(), timeout=check_interval_seconds())
+        except asyncio.TimeoutError:
+            pass
 
 def start_monitoring_task():
     """在后台启动监控任务"""

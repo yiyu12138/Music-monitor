@@ -246,7 +246,6 @@
                 </div>
                 <div class="user-area">
                     <div id="ncm-account" class="account-chip"><span class="text-soft">检查登录状态…</span></div>
-                    <button class="btn btn-ghost btn-sm" id="ncm-open-settings" title="网易云设置"><i class="bi bi-gear"></i><span class="d-none d-sm-inline"> 设置</span></button>
                 </div>
             </header>
 
@@ -348,220 +347,191 @@
                 </div>
             </div>
 
-            <!-- 设置抽屉 -->
-            <div id="ncm-settings" class="drawer" hidden>
-                <div class="drawer-backdrop" data-ncm-close></div>
-                <form class="drawer-panel" id="ncm-settings-form">
-                    <div class="drawer-head">
-                        <h5><i class="bi bi-gear"></i> 网易云设置</h5>
-                        <button type="button" class="btn-close" data-ncm-close aria-label="关闭"></button>
-                    </div>
-                    <div class="drawer-body">
-                        <label class="form-label">下载音质</label>
-                        <select id="ncm-cfg-level" class="form-select mb-1"></select>
-                        <div class="form-text mb-3">账号不支持所选音质时，服务端会自动降到可用的最高档。</div>
-
-                        <label class="form-label">单曲 / 搜索下载目录</label>
-                        <input id="ncm-cfg-dir" class="form-control mb-1">
-                        <div class="form-text mb-3">当前生效：<code id="ncm-cfg-eff"></code>。歌单下载默认保存到 <code>&lt;下载根目录&gt;/&lt;歌单名&gt;</code>。</div>
-
-                        <div class="row g-2 mb-3">
-                            <div class="col-6">
-                                <label class="form-label">监控检查间隔（秒）</label>
-                                <input id="ncm-cfg-interval" type="number" min="60" class="form-control">
-                            </div>
-                            <div class="col-6">
-                                <label class="form-label">并发下载数</label>
-                                <input id="ncm-cfg-conc" type="number" min="1" max="10" class="form-control">
-                            </div>
-                        </div>
-
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <label class="form-label mb-0">监控中的歌单</label>
-                            <button type="button" class="btn btn-sm btn-ghost" id="ncm-check-now"><i class="bi bi-arrow-repeat"></i> 立即检查</button>
-                        </div>
-                        <div id="ncm-mon-list" class="mon-list"></div>
-                        <div class="form-text mt-2">标签、封面、歌词写入与通知渠道沿用「配置」页的设置。</div>
-                    </div>
-                    <div class="drawer-foot">
-                        <button type="button" class="btn btn-light" data-ncm-close>取消</button>
-                        <button type="submit" class="btn btn-ncm">保存设置</button>
-                    </div>
-                </form>
-            </div>
         </section>
 
         <!-- =================== 配置 =================== -->
         <section id="config-content" class="page page-config" style="display: none;">
-            <header class="page-head">
-                <h2><i class="bi bi-sliders"></i> 配置</h2>
-                <p>下载规则、监控与通知。网易云的音质与目录在「网易云音乐 → 设置」里单独配置。</p>
-            </header>
-            <div class="content-box config-box">
-                <form id="config-form">
-                        <div class="row">
-                            <!-- 下载配置 -->
-                            <div class="col-md-6">
-                                <div class="panel-title"><i class="bi bi-download"></i> 下载配置</div>
-                                <div class="mb-3">
-                                    <label for="max-concurrent" class="form-label">最大并发下载数</label>
-                                    <input type="number" class="form-control" id="max-concurrent" min="1" max="20" name="download.max_concurrent">
-                                </div>
-                                <div class="mb-3">
-                                    <label for="retry-interval" class="form-label">重试间隔（秒）</label>
-                                    <input type="number" class="form-control" id="retry-interval" min="60" name="download.retry_interval_seconds">
-                                </div>
-                                <div class="form-check mb-2">
-                                    <input class="form-check-input" type="checkbox" id="write-tags" name="download.write_tags">
-                                    <label class="form-check-label" for="write-tags">写入歌曲标签（标题/歌手/专辑等）</label>
-                                </div>
-                                <div class="form-check mb-2">
-                                    <input class="form-check-input" type="checkbox" id="write-cover" name="download.write_cover">
-                                    <label class="form-check-label" for="write-cover">写入专辑封面</label>
-                                </div>
-                                <div class="form-check mb-2">
-                                    <input class="form-check-input" type="checkbox" id="write-lyrics" name="download.write_lyrics">
-                                    <label class="form-check-label" for="write-lyrics">下载歌词</label>
-                                </div>
-                                <div class="form-check mb-2">
-                                    <input class="form-check-input" type="checkbox" id="prefer-mp3" name="download.prefer_mp3">
-                                    <label class="form-check-label" for="prefer-mp3">OGG 转 MP3（优先下载原生 MP3）</label>
-                                    <div class="form-text">
-                                        勾选后：无损及以上（母带/全景声/FLAC）仍然优先；没有无损时优先取 QQ 原生 MP3，
-                                        避免下载播放器可能不支持的 .ogg。只有该歌完全没有 MP3 时才保留 OGG。默认不勾选。
-                                    </div>
-                                </div>
-                                <div class="ms-4 mb-2" id="lyric-options-container">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="lyric-include-normal" name="download.lyric_include_normal">
-                                        <label class="form-check-label" for="lyric-include-normal">普通歌词</label>
-                                    </div>
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="lyric-include-qrc" name="download.lyric_include_qrc">
-                                        <label class="form-check-label" for="lyric-include-qrc">逐字歌词（部分歌曲可用）</label>
-                                    </div>
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="lyric-include-trans" name="download.lyric_include_trans">
-                                        <label class="form-check-label" for="lyric-include-trans">翻译（有翻译时默认加入）</label>
-                                    </div>
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="lyric-write-tag" name="download.lyric_write_tag">
-                                        <label class="form-check-label" for="lyric-write-tag">写入音频标签</label>
-                                    </div>
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="lyric-write-lrc" name="download.lyric_write_lrc">
-                                        <label class="form-check-label" for="lyric-write-lrc">生成 .lrc 歌词文件</label>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- 监控配置 -->
-                            <div class="col-md-6">
-                                <div class="panel-title"><i class="bi bi-eye"></i> 监控配置</div>
-                                <div class="mb-3">
-                                    <label for="check-interval" class="form-label">检查间隔（秒）</label>
-                                    <input type="number" class="form-control" id="check-interval" min="60" name="monitor.check_interval_seconds">
-                                </div>
-                            </div>
-                        </div>
-
-                        <hr>
-
-                        <!-- 歌单下载位置 -->
-                        <div class="panel-title"><i class="bi bi-folder2-open"></i> 歌单下载位置</div>
-                        <div class="mb-3">
-                            <label class="form-label">默认下载位置（固定）</label>
-                            <input type="text" class="form-control" id="default-download-dir" value="" disabled>
-                            <div class="form-text">单曲下载的目录。歌单下载若未单独指定目录，则保存到 /app/downloads/&lt;歌单名称&gt;/。</div>
-                        </div>
-                        <div class="form-check form-switch mb-3">
-                            <input class="form-check-input" type="checkbox" id="playlist-subfolder" name="download.playlist_subfolder">
-                            <label class="form-check-label" for="playlist-subfolder">歌单下载按歌单名建子文件夹</label>
-                            <div class="form-text">关闭后，QQ 音乐与网易云的所有歌单都平铺保存到下载根目录（/app/downloads），适合已有统一音乐库的场景。单独设置了目录的监控歌单不受影响。</div>
-                        </div>
-                        <div class="mb-3" id="monitored-dir-list">
-                            <div class="text-muted small">暂无监控歌单。先到「音乐」页开启歌单监控，再回来配置。</div>
-                        </div>
-                        <div class="form-text mb-3">
-                            每个歌单可以单独设置保存目录，以及是否按日期自动新建文件夹（勾选后保存到 <code>&lt;歌单目录&gt;/YYMMDD/</code>，如 <code>261001</code>）。
-                        </div>
-
-                        <hr>
-
-                        <!-- Webhook 配置 -->
-                        <div class="panel-title"><i class="bi bi-link-45deg"></i> Webhook 通知</div>
-                        <div class="mb-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="webhook-enabled" name="notification.webhook.enabled">
-                                <label class="form-check-label" for="webhook-enabled">
-                                    启用 Webhook 通知
-                                </label>
-                            </div>
-                        </div>
-                        <div class="mb-3" id="webhook-url-container">
-                            <label for="webhook-url" class="form-label">Webhook URL</label>
-                            <input type="url" class="form-control" id="webhook-url" name="notification.webhook.url" placeholder="https://example.com/webhook">
-                        </div>
-
-                        <hr>
-
-                        <!-- Bark 配置 -->
-                        <div class="panel-title"><i class="bi bi-bell"></i> Bark 通知</div>
-                        <div class="mb-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="bark-enabled" name="notification.bark.enabled">
-                                <label class="form-check-label" for="bark-enabled">
-                                    启用 Bark 通知
-                                </label>
-                            </div>
-                        </div>
-                        <div class="mb-3" id="bark-config-container">
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label for="bark-server-url" class="form-label">Bark 服务器地址</label>
-                                        <input type="url" class="form-control" id="bark-server-url" name="notification.bark.server_url" placeholder="https://api.day.app">
-                                    </div>
-                                    <div class="mb-3">
-                                        <label for="bark-device-key" class="form-label">设备密钥 (device_key)</label>
-                                        <input type="text" class="form-control" id="bark-device-key" name="notification.bark.device_key">
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <hr>
-
-                        <!-- 企业微信配置 -->
-                        <div class="panel-title"><i class="bi bi-chat-dots"></i> 企业微信机器人通知</div>
-                        <div class="mb-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="wecom-enabled" name="notification.wecom.enabled">
-                                <label class="form-check-label" for="wecom-enabled">
-                                    启用企业微信机器人通知
-                                </label>
-                            </div>
-                        </div>
-                        <div class="mb-3" id="wecom-config-container">
-                            <label for="wecom-webhook-url" class="form-label">企业微信机器人 Webhook 地址</label>
-                            <input type="url" class="form-control" id="wecom-webhook-url" name="notification.wecom.webhook_url"
-                                   placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxxx-xxxx">
-                            <div class="form-text">在企业微信群中添加机器人后获得，支持 markdown 消息。</div>
-                        </div>
-
-                        <button type="submit" class="btn btn-primary">保存配置</button>
-                        <button type="button" class="btn btn-secondary" id="reset-config-btn">重置</button>
-                    </form>
-
-                    
-                <div class="app-meta">
-                    <span class="version-chip" title="当前版本"><i class="bi bi-tag-fill"></i> v{{ app_version }}</span>
-                    <a class="github-link" href="{{ github_url }}" target="_blank" rel="noopener noreferrer" title="{{ github_url }}">
-                        <i class="bi bi-github"></i> GitHub
-                    </a>
-                    <span class="text-soft">基于 <a href="https://github.com/huohen92/QQMusic-monitor" target="_blank" rel="noopener noreferrer">huohen92/QQMusic-monitor</a> 二次开发</span>
+            <header class="page-head config-head">
+                <div>
+                    <h2><i class="bi bi-sliders"></i> 配置</h2>
+                    <p>QQ 音乐与网易云共用一套设置，保存后立即生效，无需重启。</p>
                 </div>
-            </div>
+                <nav class="config-toc" aria-label="配置分区">
+                    <a href="#cfg-download"><i class="bi bi-download"></i> 下载</a>
+                    <a href="#cfg-location"><i class="bi bi-folder2-open"></i> 保存位置</a>
+                    <a href="#cfg-meta"><i class="bi bi-tags"></i> 标签与歌词</a>
+                    <a href="#cfg-monitor"><i class="bi bi-broadcast"></i> 歌单监控</a>
+                    <a href="#cfg-notify"><i class="bi bi-bell"></i> 通知</a>
+                </nav>
+            </header>
+
+            <form id="config-form" class="config-grid">
+                <!-- 下载 -->
+                <section class="cfg-card" id="cfg-download">
+                    <div class="cfg-card-head">
+                        <span class="cfg-ico"><i class="bi bi-download"></i></span>
+                        <div><h3>下载</h3><p>并发、音质与限额处理</p></div>
+                        <span class="scope-tag both">两个平台</span>
+                    </div>
+                    <div class="cfg-row">
+                        <div class="cfg-label"><label for="max-concurrent">最大并发下载数</label><small>QQ 音乐与网易云各自按这个数量并行下载</small></div>
+                        <input type="number" class="form-control cfg-num" id="max-concurrent" min="1" max="20" name="download.max_concurrent">
+                    </div>
+                    <div class="cfg-row">
+                        <div class="cfg-label">
+                            <span>下载音质</span>
+                            <small>都会自动选择账号能拿到的最高音质，无需设置</small>
+                        </div>
+                        <div class="quality-chips">
+                            <span class="q-chip qq"><i class="bi bi-music-note-beamed"></i> 母带 → 全景声 → FLAC → …</span>
+                            <span class="q-chip ncm"><i class="bi bi-cloud-fill"></i> 超清母带 → Hi-Res → 无损 → …</span>
+                        </div>
+                    </div>
+                    <div class="cfg-row">
+                        <div class="cfg-label">
+                            <label for="prefer-mp3">优先 MP3，避免 OGG</label>
+                            <small>没有无损时优先取 QQ 原生 MP3（个别播放器不支持 .ogg）。网易云本身不出 OGG</small>
+                        </div>
+                        <div class="form-check form-switch m-0"><input class="form-check-input" type="checkbox" id="prefer-mp3" name="download.prefer_mp3"></div>
+                    </div>
+                    <div class="cfg-row">
+                        <div class="cfg-label"><label for="retry-interval">限额冷却后重试间隔（秒）</label><small>QQ 音乐账号每天约 190 首的下载限额用完后，等这么久再自动重试</small></div>
+                        <input type="number" class="form-control cfg-num" id="retry-interval" min="60" name="download.retry_interval_seconds">
+                    </div>
+                </section>
+
+                <!-- 保存位置 -->
+                <section class="cfg-card" id="cfg-location">
+                    <div class="cfg-card-head">
+                        <span class="cfg-ico"><i class="bi bi-folder2-open"></i></span>
+                        <div><h3>保存位置</h3><p>容器内路径，对应你挂载的 /app/downloads</p></div>
+                        <span class="scope-tag both">两个平台</span>
+                    </div>
+                    <div class="cfg-row">
+                        <div class="cfg-label"><span>单曲 / 搜索下载目录</span><small>不属于任何歌单的下载都放这里</small></div>
+                        <input type="text" class="form-control cfg-path" id="default-download-dir" disabled>
+                    </div>
+                    <div class="cfg-row">
+                        <div class="cfg-label">
+                            <label for="playlist-subfolder">歌单按歌单名建子文件夹</label>
+                            <small id="subfolder-hint">开启：/app/downloads/&lt;歌单名&gt;/ · 关闭：全部平铺到 /app/downloads</small>
+                        </div>
+                        <div class="form-check form-switch m-0"><input class="form-check-input" type="checkbox" id="playlist-subfolder" name="download.playlist_subfolder"></div>
+                    </div>
+                    <div class="cfg-sub">
+                        <div class="cfg-sub-head">
+                            <span><i class="bi bi-broadcast"></i> 监控歌单的单独设置</span>
+                            <small>目录留空则按上面的规则；「按日期」= 新歌放进 YYMMDD 子文件夹</small>
+                        </div>
+                        <div id="monitored-dir-list" class="mon-table">
+                            <div class="text-soft small py-2">加载中…</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 标签与歌词 -->
+                <section class="cfg-card" id="cfg-meta">
+                    <div class="cfg-card-head">
+                        <span class="cfg-ico"><i class="bi bi-tags"></i></span>
+                        <div><h3>标签与歌词</h3><p>下载完成后自动写入</p></div>
+                        <span class="scope-tag both">两个平台</span>
+                    </div>
+                    <div class="cfg-row">
+                        <div class="cfg-label"><label for="write-tags">写入歌曲标签</label><small>标题、歌手、专辑、曲目号、年份</small></div>
+                        <div class="form-check form-switch m-0"><input class="form-check-input" type="checkbox" id="write-tags" name="download.write_tags"></div>
+                    </div>
+                    <div class="cfg-row">
+                        <div class="cfg-label"><label for="write-cover">写入专辑封面</label></div>
+                        <div class="form-check form-switch m-0"><input class="form-check-input" type="checkbox" id="write-cover" name="download.write_cover"></div>
+                    </div>
+                    <div class="cfg-row">
+                        <div class="cfg-label"><label for="write-lyrics">下载歌词</label></div>
+                        <div class="form-check form-switch m-0"><input class="form-check-input" type="checkbox" id="write-lyrics" name="download.write_lyrics"></div>
+                    </div>
+                    <div id="lyric-options-container" class="cfg-nested">
+                        <div class="chip-group">
+                            <span class="chip-label">歌词内容</span>
+                            <label class="chip-check"><input type="checkbox" id="lyric-include-normal" name="download.lyric_include_normal"><span>普通歌词</span></label>
+                            <label class="chip-check"><input type="checkbox" id="lyric-include-trans" name="download.lyric_include_trans"><span>翻译</span></label>
+                            <label class="chip-check" title="仅 QQ 音乐提供"><input type="checkbox" id="lyric-include-qrc" name="download.lyric_include_qrc"><span>逐字歌词 <em class="mini-tag qq">QQ</em></span></label>
+                        </div>
+                        <div class="chip-group">
+                            <span class="chip-label">保存方式</span>
+                            <label class="chip-check"><input type="checkbox" id="lyric-write-tag" name="download.lyric_write_tag"><span>写入音频标签</span></label>
+                            <label class="chip-check"><input type="checkbox" id="lyric-write-lrc" name="download.lyric_write_lrc"><span>生成 .lrc 文件</span></label>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 歌单监控 -->
+                <section class="cfg-card" id="cfg-monitor">
+                    <div class="cfg-card-head">
+                        <span class="cfg-ico"><i class="bi bi-broadcast"></i></span>
+                        <div><h3>歌单监控</h3><p>定期检查监控中的歌单，新歌自动下载</p></div>
+                        <span class="scope-tag both">两个平台</span>
+                    </div>
+                    <div class="cfg-row">
+                        <div class="cfg-label"><label for="check-interval">检查间隔（秒）</label><small>QQ 音乐与网易云按同一间隔检查，最小 60 秒</small></div>
+                        <input type="number" class="form-control cfg-num" id="check-interval" min="60" name="monitor.check_interval_seconds">
+                    </div>
+                    <div class="cfg-row">
+                        <div class="cfg-label"><span>监控中的歌单</span><small id="monitor-summary">—</small></div>
+                        <button type="button" class="btn btn-ghost btn-sm" id="monitor-check-now"><i class="bi bi-arrow-repeat"></i> 立即检查</button>
+                    </div>
+                </section>
+
+                <!-- 通知 -->
+                <section class="cfg-card cfg-wide" id="cfg-notify">
+                    <div class="cfg-card-head">
+                        <span class="cfg-ico"><i class="bi bi-bell"></i></span>
+                        <div><h3>通知</h3><p>下载完成 / 失败、歌单更新、登录失效时推送（网易云的消息带 [网易云] 前缀）</p></div>
+                        <button type="button" class="btn btn-ghost btn-sm ms-auto" id="notify-test-btn"><i class="bi bi-send"></i> 发送测试</button>
+                    </div>
+                    <div class="notify-grid">
+                        <div class="notify-card">
+                            <div class="notify-head">
+                                <span class="n-ico wecom"><i class="bi bi-chat-dots-fill"></i></span><strong>企业微信机器人</strong>
+                                <div class="form-check form-switch m-0 ms-auto"><input class="form-check-input" type="checkbox" id="wecom-enabled" name="notification.wecom.enabled"></div>
+                            </div>
+                            <div id="wecom-config-container">
+                                <input type="url" class="form-control form-control-sm" id="wecom-webhook-url" name="notification.wecom.webhook_url" placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=…">
+                            </div>
+                        </div>
+                        <div class="notify-card">
+                            <div class="notify-head">
+                                <span class="n-ico bark"><i class="bi bi-bell-fill"></i></span><strong>Bark</strong>
+                                <div class="form-check form-switch m-0 ms-auto"><input class="form-check-input" type="checkbox" id="bark-enabled" name="notification.bark.enabled"></div>
+                            </div>
+                            <div id="bark-config-container">
+                                <input type="url" class="form-control form-control-sm mb-2" id="bark-server-url" name="notification.bark.server_url" placeholder="https://api.day.app">
+                                <input type="text" class="form-control form-control-sm" id="bark-device-key" name="notification.bark.device_key" placeholder="device_key（App 首页链接中 api.day.app/ 后面那串）">
+                            </div>
+                        </div>
+                        <div class="notify-card">
+                            <div class="notify-head">
+                                <span class="n-ico hook"><i class="bi bi-link-45deg"></i></span><strong>Webhook</strong>
+                                <div class="form-check form-switch m-0 ms-auto"><input class="form-check-input" type="checkbox" id="webhook-enabled" name="notification.webhook.enabled"></div>
+                            </div>
+                            <div id="webhook-url-container">
+                                <input type="url" class="form-control form-control-sm" id="webhook-url" name="notification.webhook.url" placeholder="https://example.com/webhook">
+                                <div class="form-text">POST JSON：{ title, message, timestamp }</div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <div class="config-actions">
+                    <div class="app-meta">
+                        <span class="version-chip" title="当前版本"><i class="bi bi-tag-fill"></i> v{{ app_version }}</span>
+                        <a class="github-link" href="{{ github_url }}" target="_blank" rel="noopener noreferrer" title="{{ github_url }}"><i class="bi bi-github"></i> GitHub</a>
+                        <span class="text-soft">基于 <a href="https://github.com/huohen92/QQMusic-monitor" target="_blank" rel="noopener noreferrer">huohen92/QQMusic-monitor</a> 二次开发</span>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-light" id="reset-config-btn"><i class="bi bi-arrow-counterclockwise"></i> 恢复默认</button>
+                        <button type="submit" class="btn btn-primary" id="config-save-btn"><i class="bi bi-check2"></i> 保存配置</button>
+                    </div>
+                </div>
+            </form>
         </section>
 
         <!-- =================== 日志 =================== -->

@@ -115,8 +115,9 @@ class NotificationManager:
         if not bark_config or not bark_config.get("enabled", False):
             return False
 
-        server_url = bark_config.get("server_url", "https://api.day.app")
-        device_key = bark_config.get("device_key")
+        # 去掉首尾空白和斜杠：粘贴时多带一个 "/" 会拼出 ".../key//标题/..." 导致 Bark 返回 404
+        server_url = (bark_config.get("server_url") or "https://api.day.app").strip().rstrip("/")
+        device_key = (bark_config.get("device_key") or "").strip().strip("/")
         if not device_key:
             return False
 

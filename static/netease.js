@@ -527,53 +527,6 @@
         loadTasks();
     }
 
-    // ======================= 设置抽屉 =======================
-    async function openSettings() {
-        const drawer = $('#ncm-settings');
-        drawer.hidden = false;
-        requestAnimationFrame(() => drawer.classList.add('open'));
-        try {
-            const d = await api('/api/ncm/config');
-            $('#ncm-cfg-level').innerHTML = Object.entries(d.levels).map(([k, v]) =>
-                '<option value="' + k + '"' + (k === d.config.level ? ' selected' : '') + '>' + esc(v) + '</option>').join('');
-            $('#ncm-cfg-dir').value = d.config.download_dir || '';
-            $('#ncm-cfg-dir').placeholder = d.root + '/网易云';
-            $('#ncm-cfg-eff').textContent = d.effective_dir;
-            $('#ncm-cfg-interval').value = d.config.check_interval_seconds;
-            $('#ncm-cfg-conc').value = d.config.max_concurrent;
-            const m = await api('/api/ncm/monitor');
-            const ids = Object.keys(m);
-            $('#ncm-mon-list').innerHTML = ids.length ? ids.map(id =>
-                '<div class="mon-row"><div class="mon-head">' +
-                (m[id].cover ? '<img src="' + esc(thumb(m[id].cover, 64)) + '" alt="">' : '<i class="bi bi-music-note-list"></i>') +
-                '<div class="mon-title"><div class="text-truncate">' + esc(m[id].title) + '</div><small>' + m[id].count + ' 首 · ' +
-                (m[id].last_check ? '上次检查 ' + new Date(m[id].last_check * 1000).toLocaleString() : '尚未检查') + '</small></div></div>' +
-                '<input class="form-control form-control-sm ncm-mon-dir" data-id="' + id + '" value="' + esc(m[id].download_dir) + '" placeholder="留空：' + esc(m[id].resolved_dir) + '"></div>'
-            ).join('') : '<div class="text-soft small">还没有监控的歌单。在左侧歌单旁点「监控」即可。</div>';
-        } catch (e) { toast(e.message, 'danger'); }
-    }
-
-    function closeSettings() {
-        const drawer = $('#ncm-settings');
-        drawer.classList.remove('open');
-        setTimeout(() => { drawer.hidden = true; }, 250);
-    }
-
-    async function saveSettings(e) {
-        e.preventDefault();
-        try {
-            await api('/api/ncm/config', { method: 'PUT', json: {
-                level: $('#ncm-cfg-level').value, download_dir: $('#ncm-cfg-dir').value,
-                check_interval_seconds: $('#ncm-cfg-interval').value, max_concurrent: $('#ncm-cfg-conc').value,
-            } });
-            const dirs = {};
-            document.querySelectorAll('.ncm-mon-dir').forEach(i => { dirs[i.dataset.id] = { download_dir: i.value }; });
-            if (Object.keys(dirs).length) await api('/api/ncm/monitor', { method: 'PUT', json: dirs });
-            toast('网易云设置已保存', 'success');
-            closeSettings();
-        } catch (err) { toast(err.message, 'danger'); }
-    }
-
     // ======================= 小组件 =======================
     function emptyState(icon, text, compact) {
         return '<div class="empty-state' + (compact ? ' compact' : '') + '"><i class="bi ' + icon + '"></i><div>' + esc(text) + '</div></div>';
@@ -613,11 +566,6 @@
             await api('/api/ncm/tasks/clear', { method: 'POST' });
             loadTasks();
         };
-        $('#ncm-open-settings').onclick = openSettings;
-        $('#ncm-settings-form').onsubmit = saveSettings;
-        document.querySelectorAll('[data-ncm-close]').forEach(el => { el.onclick = closeSettings; });
-        $('#ncm-check-now').onclick = async () => { const d = await api('/api/ncm/monitor/check/now', { method: 'POST' }); toast(d.message, 'info'); };
-        document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#ncm-settings').hidden) closeSettings(); });
         refreshStatus();
         loadTasks();
         state.taskTimer = setInterval(loadTasks, 2000);

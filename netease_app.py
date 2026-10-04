@@ -26,20 +26,15 @@ router = APIRouter(prefix="/api/ncm")
 DATA_DIR = "data"
 TASKS_FILE = os.path.join(DATA_DIR, "ncm_tasks.json")
 MONITOR_FILE = os.path.join(DATA_DIR, "ncm_monitored.json")
-CONFIG_FILE = os.path.join(DATA_DIR, "ncm_config.json")
 AUDIO_EXTS = (".mp3", ".flac", ".ogg", ".m4a", ".wav", ".ape")
 
-DEFAULT_CONFIG = {
-    "level": "lossless",          # 下载目标音质（账号不够时服务端自动降级）
-    "download_dir": "",           # 单曲/搜索下载目录；空 = <下载根目录>/网易云
-    "check_interval_seconds": 1800,
-    "max_concurrent": 3,
-}
+# 下载音质固定请求最高档（超清母带），服务端会自动降到账号可用的最高音质，因此界面上不再提供选择
+DOWNLOAD_LEVEL = "jymaster"
 
 tasks: dict = {}                  # key: 网易云歌曲 id(str)
 queue: asyncio.Queue = asyncio.Queue()
-_workers: list = []
 _bg: list = []
+_wake = asyncio.Event()
 _save_lock = asyncio.Lock()
 _check_lock = asyncio.Lock()
 _account_cache = {"t": 0.0, "v": None}
@@ -66,10 +61,9 @@ def _write_json(path, data):
     os.replace(tmp, path)
 
 
-def get_config() -> dict:
-    cfg = dict(DEFAULT_CONFIG)
-    cfg.update(_read_json(CONFIG_FILE, {}))
-    return cfg
+def _cfg(key, default=None):
+    from config import config as app_config
+    return app_config.get(key, default)
 
 
 def _downloads_root() -> str:
@@ -83,8 +77,9 @@ def _sanitize(name: str) -> str:
 
 
 def single_dir() -> str:
-    d = (get_config().get("download_dir") or "").strip()
-    return d or os.path.join(_downloads_root(), "网易云")
+    """单曲 / 搜索下载目录：与 QQ 音乐共用「单曲下载目录」"""
+    from download_paths import default_song_dir
+    return default_song_dir()
 
 
 def playlist_dir(title: str, override: str = "") -> str:
@@ -206,7 +201,8 @@ async def _notify(kind: str, *args):
 
 
 # ---------------- 下载 ----------------
-async def enqueue(song: dict, target_dir: str = "", force: bool = False, source: str = "") -> bool:
+async def enqueue(song: dict, target_dir: str = "", force: bool = False, source: str = "",
+                  date_folder=None) -> bool:
     sid = song["id"]
     t = tasks.get(sid)
     if t and not force and t.get("status") in ("queued", "downloading", "completed"):
@@ -221,6 +217,7 @@ async def enqueue(song: dict, target_dir: str = "", force: bool = False, source:
         "download_dir": target_dir or (t or {}).get("download_dir", ""),
         "force": force,
         "source": source or (t or {}).get("source", ""),
+        "date_folder": bool((t or {}).get("date_folder")) if date_folder is None else bool(date_folder),
         "created": int(time.time()),
     }
     await _save_tasks()
@@ -232,11 +229,15 @@ async def _download(sid: str):
     task = tasks[sid]
     song = task["song"]
     name = "[网易云] " + task["song_name"]
-    target_dir = task.get("download_dir") or single_dir()
+    base_dir = task.get("download_dir") or single_dir()
+    target_dir = base_dir
+    if task.get("date_folder"):
+        from download_paths import date_folder_name
+        target_dir = os.path.join(base_dir, date_folder_name())
     os.makedirs(target_dir, exist_ok=True)
 
     if not task.get("force"):
-        existing = LocalIndex(target_dir).find(song)
+        existing = LocalIndex(base_dir).find(song)
         if existing:
             info = _file_info(existing)
             task.update(status="completed", progress=100, file_path=existing, file_size=info["size"],
@@ -245,7 +246,7 @@ async def _download(sid: str):
             return
 
     try:
-        info = await client.song_url(sid, get_config().get("level", "lossless"))
+        info = await client.song_url(sid, DOWNLOAD_LEVEL)
     except Exception as e:
         info = None
         print(f"[网易云] 获取链接异常 {sid}: {e}")
@@ -284,7 +285,7 @@ async def _download(sid: str):
                         if total:
                             task["progress"] = min(99, int(done * 100 / total))
         # 覆盖同一首歌的旧文件（含不同格式的副本）
-        for old in [p for p in [LocalIndex(target_dir).find(song)] if p and p != path]:
+        for old in [p for p in [LocalIndex(base_dir).find(song)] if p and p != path]:
             try:
                 os.remove(old)
                 lrc = os.path.splitext(old)[0] + ".lrc"
@@ -344,31 +345,32 @@ async def _download(sid: str):
     await _notify("ok", name, quality, human_size(size), os.path.dirname(path))
 
 
-async def _worker():
-    while True:
-        sid = await queue.get()
-        try:
-            t = tasks.get(sid)
-            if t and t.get("status") == "queued":
-                await _download(sid)
-                await _save_tasks()
-        except asyncio.CancelledError:
-            raise
-        except Exception as e:
-            print(f"[网易云] 下载工作者异常: {e}")
-            if sid in tasks:
-                tasks[sid].update(status="failed", error=str(e))
-                await _save_tasks()
-        finally:
-            queue.task_done()
+async def _process(sid):
+    t = tasks.get(sid)
+    if not t or t.get("status") != "queued":
+        return
+    try:
+        await _download(sid)
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:
+        print(f"[网易云] 下载异常: {e}")
+        t.update(status="failed", error=str(e))
+    await _save_tasks()
 
 
-def _resize_workers():
-    n = max(1, min(10, int(get_config().get("max_concurrent", 3) or 3)))
-    while len(_workers) < n:
-        _workers.append(asyncio.create_task(_worker()))
-    while len(_workers) > n:
-        _workers.pop().cancel()
+from worker_pool import WorkerPool  # noqa: E402
+pool = WorkerPool("网易云", queue, _process)
+
+
+def apply_config():
+    """config.json 保存后调用：按共用的「最大并发下载数」调整网易云工作者"""
+    from tasks import max_concurrent
+    pool.resize(max_concurrent())
+
+
+def wake_now():
+    _wake.set()
 
 
 # ---------------- 监控 ----------------
@@ -403,7 +405,7 @@ async def check_playlists() -> int:
                     print(f"[网易云] 歌单「{name}」发现 {len(new_songs)} 首新歌")
                     target = playlist_dir(name, info.get("download_dir", ""))
                     for s in new_songs:
-                        await enqueue(s, target, source=name)
+                        await enqueue(s, target, source=name, date_folder=bool(info.get("date_folder")))
                     await _notify("playlist", f"[网易云] {name}",
                                   [{"name": s["name"], "singer": s["singer"]} for s in new_songs], len(songs))
                 info["known_ids"] = sorted(current)
@@ -417,13 +419,21 @@ async def check_playlists() -> int:
 
 
 async def _monitor_loop():
-    await asyncio.sleep(30)
+    from monitor import check_interval_seconds
+    try:
+        await asyncio.wait_for(_wake.wait(), timeout=30)
+    except asyncio.TimeoutError:
+        pass
     while True:
+        _wake.clear()
         try:
             await check_playlists()
         except Exception as e:
             print(f"[网易云] 监控循环异常: {e}")
-        await asyncio.sleep(max(60, int(get_config().get("check_interval_seconds", 1800) or 1800)))
+        try:
+            await asyncio.wait_for(_wake.wait(), timeout=check_interval_seconds())
+        except asyncio.TimeoutError:
+            pass
 
 
 # ---------------- 生命周期 ----------------
@@ -434,16 +444,17 @@ async def startup():
             t.update(status="failed", error="程序重启导致中断")
     tasks.clear()
     tasks.update(persisted)
-    _resize_workers()
+    apply_config()
     _bg.append(asyncio.create_task(_monitor_loop()))
     acc = await account(force=True)
     print(f"[网易云] 模块已启动，登录状态: {acc['nickname'] if acc else '未登录'}")
 
 
 async def shutdown():
-    for t in _workers + _bg:
+    for t in _bg:
         t.cancel()
-    await asyncio.gather(*_workers, *_bg, return_exceptions=True)
+    await asyncio.gather(*_bg, return_exceptions=True)
+    await pool.stop()
     await _save_tasks()
     await client.close()
 
@@ -670,8 +681,9 @@ async def download(body: DownloadBody):
         mon = _load_monitor().get(body.playlist_id, {})
         target = playlist_dir(body.playlist_name or mon.get("title", ""), mon.get("download_dir", ""))
         source = body.playlist_name
+        date_folder = bool(mon.get("date_folder"))
     else:
-        target, source = single_dir(), "搜索"
+        target, source, date_folder = single_dir(), "搜索", False
     t = tasks.get(song["id"])
     if t and t.get("status") in ("queued", "downloading"):
         return {"status": "skipped", "message": "已在下载队列中"}
@@ -679,7 +691,7 @@ async def download(body: DownloadBody):
         local = LocalIndex(target).find(song)
         if local:
             return {"status": "local_exists", "local": _file_info(local)}
-    await enqueue(song, target, force=body.force or bool(t), source=source)
+    await enqueue(song, target, force=body.force or bool(t), source=source, date_folder=date_folder)
     return {"status": "queued"}
 
 
@@ -695,7 +707,7 @@ async def download_playlist(pid: str):
         if idx.find(s):
             skipped += 1
             continue
-        if await enqueue(s, target, source=detail["name"]):
+        if await enqueue(s, target, source=detail["name"], date_folder=bool(mon.get("date_folder"))):
             added += 1
         else:
             skipped += 1
@@ -759,6 +771,7 @@ async def retry_failed():
 async def monitor_list():
     return {pid: {"title": v.get("title"), "cover": v.get("cover", ""),
                   "download_dir": v.get("download_dir", ""),
+                  "date_folder": bool(v.get("date_folder", False)),
                   "resolved_dir": playlist_dir(v.get("title", ""), v.get("download_dir", "")),
                   "count": len(v.get("known_ids", [])), "last_check": v.get("last_check")}
             for pid, v in _load_monitor().items()}
@@ -775,7 +788,7 @@ async def monitor_toggle(pid: str):
     detail, songs = await client.playlist_songs(pid)
     mons[pid] = {"title": detail["name"], "cover": detail.get("cover", ""),
                  "known_ids": sorted(s["id"] for s in songs),
-                 "download_dir": "", "last_check": int(time.time())}
+                 "download_dir": "", "date_folder": False, "last_check": int(time.time())}
     _save_monitor(mons)
     return {"monitored": True,
             "message": f"已开始监控「{detail['name']}」（当前 {len(songs)} 首），之后新加入的歌曲会自动下载"}
@@ -785,40 +798,10 @@ async def monitor_toggle(pid: str):
 async def monitor_update(data: dict):
     mons = _load_monitor()
     for pid, v in data.items():
-        if pid in mons and isinstance(v, dict) and isinstance(v.get("download_dir", ""), str):
-            mons[pid]["download_dir"] = v["download_dir"].strip()
+        if pid in mons and isinstance(v, dict):
+            if isinstance(v.get("download_dir", ""), str):
+                mons[pid]["download_dir"] = v.get("download_dir", "").strip()
+            if "date_folder" in v:
+                mons[pid]["date_folder"] = str(v["date_folder"]).lower() in ("true", "1", "yes", "on")
     _save_monitor(mons)
     return {"status": "success"}
-
-
-@router.post("/monitor/check/now")
-async def monitor_check_now():
-    if _check_lock.locked():
-        return {"message": "正在检查中，请稍候"}
-    asyncio.create_task(check_playlists())
-    return {"message": "已开始检查，发现新歌会自动加入下载队列"}
-
-
-# ---------- 配置 ----------
-@router.get("/config")
-async def config_get():
-    return {"config": get_config(), "levels": LEVELS, "effective_dir": single_dir(),
-            "root": _downloads_root()}
-
-
-@router.put("/config")
-async def config_put(data: dict):
-    cfg = get_config()
-    if data.get("level") in LEVELS:
-        cfg["level"] = data["level"]
-    if isinstance(data.get("download_dir"), str):
-        cfg["download_dir"] = data["download_dir"].strip()
-    for k, lo, hi in (("check_interval_seconds", 60, 7 * 86400), ("max_concurrent", 1, 10)):
-        if k in data:
-            try:
-                cfg[k] = max(lo, min(hi, int(data[k])))
-            except (TypeError, ValueError):
-                pass
-    _write_json(CONFIG_FILE, cfg)
-    _resize_workers()
-    return {"status": "success", "config": cfg, "effective_dir": single_dir()}

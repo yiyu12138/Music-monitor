@@ -5,7 +5,7 @@ from typing import Dict, Any
 CONFIG_FILE = os.path.join("data", "config.json")
 
 # 应用版本与项目主页（配置页展示用；升级版本只改这里）
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
 GITHUB_URL = "https://github.com/yiyu12138/Music-monitor"
 
 # 默认配置
@@ -15,7 +15,7 @@ DEFAULT_CONFIG = {
         "port": 6696
     },
     "download": {
-        "max_concurrent": 5,
+        "max_concurrent": 3,
         "retry_interval_seconds": 24 * 3600,
         "default_dir": "/app/downloads/save",
         "downloads_root": "/app/downloads",
@@ -72,8 +72,33 @@ class ConfigManager:
             except (json.JSONDecodeError, IOError) as e:
                 print(f"加载配置文件失败: {e}，将使用默认配置")
         
+        # 旧版网易云独立配置 data/ncm_config.json → 合并进 config.json（只迁移一次）
+        self._migrate_ncm_config()
+
         # 从环境变量加载配置，优先级高于文件配置
         self._load_env_config()
+
+    def _migrate_ncm_config(self):
+        legacy = os.path.join("data", "ncm_config.json")
+        if not os.path.exists(legacy):
+            return
+        try:
+            with open(legacy, "r", encoding="utf-8") as f:
+                old = json.load(f) or {}
+            dl = self._config["download"]
+            mon = self._config["monitor"]
+            # 并发数与检查间隔两平台合并为一个，取两者中较大的并发、较小的间隔
+            if old.get("max_concurrent"):
+                dl["max_concurrent"] = max(int(dl.get("max_concurrent", 3)), int(old["max_concurrent"]))
+            if old.get("check_interval_seconds"):
+                mon["check_interval_seconds"] = min(int(mon.get("check_interval_seconds", 1800)),
+                                                    int(old["check_interval_seconds"]))
+            # 网易云单曲目录并入「单曲下载目录」，不再单独区分
+            self.save_config()
+            os.replace(legacy, legacy + ".migrated")
+            print("已将旧版网易云配置 ncm_config.json 合并进 config.json")
+        except Exception as e:
+            print(f"迁移网易云配置失败（不影响使用）: {e}")
     
     def _load_env_config(self):
         """从环境变量加载配置"""

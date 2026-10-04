@@ -1805,7 +1805,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('reset-config-btn').addEventListener('click', async () => {
             const resetOk = await uiConfirm({
                 title: '重置配置',
-                message: '所有配置将恢复为默认值，包括下载目录、并发数与通知设置。',
+                message: '所有配置（两个平台共用）将恢复为默认值，包括并发数、保存位置、歌词与通知设置。监控歌单本身不受影响。',
                 confirmText: '重置',
                 tone: 'warning',
             });
@@ -1830,6 +1830,37 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('bark-enabled').addEventListener('change', toggleBarkFields);
     document.getElementById('wecom-enabled').addEventListener('change', toggleWecomFields);
     document.getElementById('write-lyrics').addEventListener('change', toggleLyricFields);
+    document.getElementById('playlist-subfolder').addEventListener('change', updateSubfolderHint);
+    document.getElementById('monitor-check-now').addEventListener('click', async (e) => {
+        const btn = e.currentTarget;
+        btn.disabled = true;
+        try {
+            const r = await fetch('/api/monitor/check-now', { method: 'POST' });
+            const d = await r.json();
+            if (window.toast) window.toast(d.message, 'info'); else uiAlert(d.message);
+        } catch (err) { uiAlert('触发检查失败'); }
+        setTimeout(() => { btn.disabled = false; }, 3000);
+    });
+    document.getElementById('notify-test-btn').addEventListener('click', async (e) => {
+        const btn = e.currentTarget;
+        const label = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 发送中';
+        try {
+            const r = await fetch('/api/notification/test', { method: 'POST' });
+            const d = await r.json();
+            const tone = d.status === 'success' ? 'success' : (d.status === 'none' ? 'info' : 'warning');
+            const tip = d.status === 'none' ? '\n\n请先打开至少一个通知渠道并保存配置。' : '\n\n提示：测试用的是已保存的配置，修改后请先保存。';
+            uiAlert({ title: '测试通知', message: d.message + tip, tone });
+        } catch (err) { uiAlert({ title: '测试通知', message: '发送失败：' + err.message, tone: 'danger' }); }
+        btn.disabled = false;
+        btn.innerHTML = label;
+    });
+    document.querySelectorAll('.config-toc a').forEach(a => a.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        const el = document.querySelector(a.getAttribute('href'));
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }));
 
     // 初始切换
     toggleWebhookFields();
@@ -1995,70 +2026,62 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // 监控歌单（QQ 音乐 + 网易云合并成一张表）
+    const escHtml = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
     async function loadMonitoredDirs() {
         const container = document.getElementById('monitored-dir-list');
+        const summary = document.getElementById('monitor-summary');
         if (!container) return;
-        try {
-            const response = await fetch('/api/monitored-playlists-config');
-            if (!response.ok) {
-                container.innerHTML = '<div class="text-muted small">登录 QQ 音乐并开启歌单监控后，可在这里为每个歌单设置下载目录。</div>';
-                return;
-            }
-            const data = await response.json();
-            const playlists = data || {};
-            const ids = Object.keys(playlists);
-            if (ids.length === 0) {
-                container.innerHTML = '<div class="text-muted small">暂无监控歌单。先到「音乐」页开启歌单监控，再回来配置。</div>';
-                return;
-            }
-            container.innerHTML = ids.map(id => {
-                const pl = playlists[id];
-                const hint = pl.resolved_dir || '默认目录';
-                return `
-                    <div class="mb-2 d-flex align-items-center flex-wrap">
-                        <span class="text-truncate me-2" style="min-width: 120px; max-width: 200px;" title="${pl.title}">${pl.title}</span>
-                        <input type="text" class="form-control me-2" style="max-width: 320px;" data-playlist-id="${id}"
-                               placeholder="留空使用 ${hint}" value="${pl.download_dir || ''}">
-                        <div class="form-check form-check-inline mb-0">
-                            <input class="form-check-input date-folder-checkbox" type="checkbox"
-                                   id="date-folder-${id}" data-playlist-id="${id}" ${pl.date_folder ? 'checked' : ''}>
-                            <label class="form-check-label" for="date-folder-${id}" title="勾选后保存到 ${hint}/YYMMDD/">
-                                按日期建文件夹
-                            </label>
-                        </div>
-                    </div>`;
-            }).join('');
-        } catch (error) {
-            console.error('加载监控歌单目录失败:', error);
+        const fetchJson = async (url) => {
+            try { const r = await fetch(url); return r.ok ? await r.json() : null; } catch (e) { return null; }
+        };
+        const [qq, ncm] = await Promise.all([fetchJson('/api/monitored-playlists-config'), fetchJson('/api/ncm/monitor')]);
+        const rows = [];
+        Object.entries(qq || {}).forEach(([id, pl]) => rows.push({ platform: 'qq', id, title: pl.title, dir: pl.download_dir || '', resolved: pl.resolved_dir || '', date: !!pl.date_folder }));
+        Object.entries(ncm || {}).forEach(([id, pl]) => rows.push({ platform: 'ncm', id, title: pl.title, dir: pl.download_dir || '', resolved: pl.resolved_dir || '', date: !!pl.date_folder }));
+        const qn = rows.filter(r => r.platform === 'qq').length;
+        const nn = rows.length - qn;
+        if (summary) summary.textContent = rows.length ? 'QQ 音乐 ' + qn + ' 个 · 网易云 ' + nn + ' 个' : '还没有监控的歌单';
+        if (!rows.length) {
+            container.innerHTML = '<div class="text-soft small py-2">还没有监控的歌单。在 QQ 音乐或网易云页面，点歌单旁的「监控」即可。' + (qq === null ? '（QQ 音乐未登录）' : '') + '</div>';
+            return;
         }
+        container.innerHTML = rows.map(r => {
+            const isQQ = r.platform === 'qq';
+            const extra = '<label class="chip-check sm" title="新歌保存到 <目录>/YYMMDD/ 子文件夹"><input type="checkbox" class="date-folder-checkbox"' + (r.date ? ' checked' : '') + '><span>按日期</span></label>';
+            return '<div class="mon-item" data-platform="' + r.platform + '" data-id="' + escHtml(r.id) + '">'
+                + '<span class="plat-dot ' + r.platform + '" title="' + (isQQ ? 'QQ 音乐' : '网易云音乐') + '"><i class="bi ' + (isQQ ? 'bi-music-note-beamed' : 'bi-cloud-fill') + '"></i></span>'
+                + '<span class="mon-name text-truncate" title="' + escHtml(r.title) + '">' + escHtml(r.title) + '</span>'
+                + '<input type="text" class="form-control form-control-sm mon-dir-input" placeholder="' + escHtml(r.resolved || '默认目录') + '" value="' + escHtml(r.dir) + '">'
+                + extra + '</div>';
+        }).join('');
     }
 
     async function saveMonitoredDirs() {
-        const container = document.getElementById('monitored-dir-list');
-        if (!container) return true;
-        const inputs = container.querySelectorAll('input[data-playlist-id][type="text"]');
-        if (inputs.length === 0) return true;
-        const payload = {};
-        inputs.forEach(inp => {
-            const id = inp.dataset.playlistId;
-            const checkbox = container.querySelector(`.date-folder-checkbox[data-playlist-id="${id}"]`);
-            payload[id] = {
-                download_dir: inp.value.trim(),
-                date_folder: checkbox ? checkbox.checked : false,
-            };
+        const items = document.querySelectorAll('#monitored-dir-list .mon-item');
+        if (!items.length) return true;
+        const qq = {};
+        const ncm = {};
+        items.forEach(it => {
+            const dir = it.querySelector('.mon-dir-input').value.trim();
+            const cb = it.querySelector('.date-folder-checkbox');
+            const val = { download_dir: dir, date_folder: cb ? cb.checked : false };
+            if (it.dataset.platform === 'qq') qq[it.dataset.id] = val; else ncm[it.dataset.id] = val;
         });
-        try {
-            const response = await fetch('/api/monitored-playlists-config', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            if (!response.ok) throw new Error('保存失败');
-            return true;
-        } catch (error) {
-            console.error('保存监控歌单目录失败:', error);
-            return false;
-        }
+        const put = (url, body) => fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.ok).catch(() => false);
+        const results = await Promise.all([
+            Object.keys(qq).length ? put('/api/monitored-playlists-config', qq) : true,
+            Object.keys(ncm).length ? put('/api/ncm/monitor', ncm) : true,
+        ]);
+        return results.every(Boolean);
+    }
+
+    function updateSubfolderHint() {
+        const sw = document.getElementById('playlist-subfolder');
+        const hint = document.getElementById('subfolder-hint');
+        if (!sw || !hint) return;
+        hint.textContent = sw.checked ? '当前：歌单保存到 /app/downloads/<歌单名>/' : '当前：所有歌单平铺保存到 /app/downloads';
     }
 
     function fillFormWithConfig(config) {
@@ -2081,6 +2104,7 @@ document.addEventListener('DOMContentLoaded', () => {
         toggleBarkFields();
         toggleWecomFields();
         toggleLyricFields();
+        updateSubfolderHint();
     }
     
     function getNestedValue(obj, path) {
@@ -2120,7 +2144,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (response.ok) {
                 // 一并保存监控歌单下载目录
                 const dirsOk = await saveMonitoredDirs();
-                uiAlert(dirsOk ? '配置保存成功！' : '配置已保存，但歌单下载目录保存失败。');
+                if (dirsOk) {
+                    if (window.toast) window.toast('配置已保存并生效', 'success'); else uiAlert('配置已保存并生效');
+                } else {
+                    uiAlert({ title: '部分保存失败', message: '配置已保存，但监控歌单的目录设置保存失败。', tone: 'warning' });
+                }
+                loadMonitoredDirs();
             } else {
                 throw new Error('配置保存失败');
             }

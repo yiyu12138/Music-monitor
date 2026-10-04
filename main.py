@@ -27,8 +27,6 @@ from contextlib import asynccontextmanager
 # --- 从 tasks 模块导入 download_tasks ---
 download_tasks = tasks.download_tasks
 
-# --- 全局变量，用于管理后台任务 ---
-worker_tasks = []
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -37,8 +35,7 @@ async def lifespan(app: FastAPI):
     print("Application startup...")
     await tasks.load_download_tasks()
     # 启动下载工作者（消费者）
-    global worker_tasks
-    worker_tasks = start_download_workers()
+    start_download_workers()
     # 初始化 qqmusic api 会话
     qq_music.initialize_qqmusic_session()
     await qq_music.initialize_from_cookie()
@@ -59,9 +56,7 @@ async def lifespan(app: FastAPI):
     # --- 关闭时执行 ---
     print("Application shutdown...")
     # 取消所有后台下载任务
-    for task in worker_tasks:
-        task.cancel()
-    await asyncio.gather(*worker_tasks, return_exceptions=True)
+    await tasks.stop_download_workers()
     print("所有下载工作者已停止。")
     
     # 在关闭前最后保存一次任务状态
@@ -686,14 +681,48 @@ async def api_clear_logs():
     count = log_store.clear()
     return {"status": "success", "cleared": count}
 
+def apply_runtime_config():
+    """保存配置后立即生效：调整两个平台的并发数（检查间隔/重试间隔每次实时读取）"""
+    tasks.worker_pool.resize(tasks.max_concurrent())
+    netease_app.apply_config()
+
+
 @app.put("/api/config")
 async def update_config(new_config: dict):
-    """更新配置"""
+    """更新配置（QQ 音乐与网易云共用一份 config.json）"""
     from config import config
     if config.update_config(new_config):
-        return {"status": "success", "message": "配置已更新"}
+        apply_runtime_config()
+        return {"status": "success", "message": "配置已保存并生效"}
     else:
         raise HTTPException(status_code=500, detail="更新配置失败")
+
+
+@app.post("/api/monitor/check-now")
+async def monitor_check_now():
+    """立即检查所有监控歌单（QQ 音乐 + 网易云）"""
+    monitor.wake_now()
+    netease_app.wake_now()
+    return {"status": "success", "message": "已开始检查两个平台的监控歌单，发现新歌会自动加入下载队列"}
+
+
+@app.post("/api/notification/test")
+async def notification_test():
+    """向所有已启用的通知渠道发送一条测试消息"""
+    from notification import notification_manager
+    results = await notification_manager.send_notification(
+        "这是一条测试通知。收到说明通知渠道配置正确。", "Music Monitor 测试通知")
+    enabled = {k: v for k, v in results.items()
+               if (notification_manager._config.get(f"notification.{k}") or {}).get("enabled")}
+    if not enabled:
+        return {"status": "none", "message": "没有启用任何通知渠道", "results": results}
+    names = {"webhook": "Webhook", "bark": "Bark", "wecom": "企业微信"}
+    ok = [names[k] for k, v in enabled.items() if v]
+    bad = [names[k] for k, v in enabled.items() if not v]
+    msg = ("发送成功：" + "、".join(ok)) if ok else ""
+    if bad:
+        msg += ("；" if msg else "") + "发送失败：" + "、".join(bad) + "（详情见日志页）"
+    return {"status": "success" if not bad else "partial", "message": msg, "results": enabled}
 
 @app.put("/api/config/{key_path}")
 async def update_config_key(key_path: str, value: dict):
@@ -709,6 +738,7 @@ async def reset_config():
     """重置配置为默认值"""
     from config import config
     if config.reset_config():
+        apply_runtime_config()
         return {"status": "success", "message": "配置已重置", "config": config.get_full_config()}
     else:
         raise HTTPException(status_code=500, detail="重置配置失败")
