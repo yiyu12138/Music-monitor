@@ -293,3 +293,8 @@
 | `.dockerignore` | 28 | 构建排除（凭证/音乐/虚拟环境） |
 
 **改动**：`main.py`、`tasks.py`、`monitor.py`、`qq_music.py`、`notification.py`、`utils.py`、`config.py`、`static/script.js`、`static/style.css`、`templates/index.html`、`requirements.txt`、`start.sh`、`docker-compose.yml`、`README.md`
+
+## 未发布 · 修复 Bark 推送丢失
+- 修复：消息正文含 `/`（如「下载位置: /vol1/1000/music」）时 Bark 返回 404，整条推送静默丢失。改用 `POST /push` 提交 JSON，不再受 URL 路径分隔符和长度限制
+- 修复：Bark device_key 末尾多带的 `/` 在 POST 模式下会变成另一个设备导致 400，改为提交前剥离
+- 超长消息按 UTF-8 字节分段发送，并归入「音乐下载器」分组、开启历史归档

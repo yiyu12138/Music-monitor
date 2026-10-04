@@ -31,45 +31,6 @@ def _split_by_bytes(text: str, max_bytes: int) -> list:
     return chunks
 
 
-def _split_by_encoded_len(text: str, max_len: int) -> list:
-    """按 URL 编码后的长度分段（Bark 走 GET 路径，受 URL 长度限制）"""
-    if len(urllib.parse.quote(text)) <= max_len:
-        return [text]
-    chunks, current = [], ""
-    for line in text.split("\n"):
-        candidate = f"{current}\n{line}" if current else line
-        if current and len(urllib.parse.quote(candidate)) > max_len:
-            chunks.append(current)
-            current = line
-        else:
-            current = candidate
-        while len(urllib.parse.quote(current)) > max_len and current:
-            lo, hi = 1, len(current)
-            while lo < hi:
-                mid = (lo + hi + 1) // 2
-                if len(urllib.parse.quote(current[:mid])) <= max_len:
-                    lo = mid
-                else:
-                    hi = mid - 1
-            chunks.append(current[:lo])
-            current = current[lo:]
-    if current:
-        chunks.append(current)
-    return chunks
-
-
-# 歌单结果汇报里各状态的显示文案
-STATUS_LABELS = {
-    "completed": "✅已下载",
-    "local_exists": "⏭本地已存在，跳过",
-    "failed": "❌下载失败",
-    "waiting": "⏳等待重试",
-    "pending": "⬇️下载中",
-    "cancelled": "🚫已取消",
-    "unknown": "⬜未下载",
-}
-
-STATUS_SUMMARY_ORDER = ["completed", "local_exists", "failed", "waiting", "pending", "cancelled", "unknown"]
 
 
 class NotificationManager:
@@ -110,34 +71,46 @@ class NotificationManager:
             return False
     
     async def _send_bark(self, message: str, title: str = "QQ音乐下载器通知") -> bool:
-        """发送Bark通知"""
+        """发送Bark通知
+
+        用 POST /push 提交 JSON，而不是 GET /{key}/{title}/{body}：
+        GET 路径里正文中的 "/" 会被 Bark 当成路径分隔符，整条推送会 404。
+        下载位置、URL 这类含斜杠或长链接的字段最常踩这个坑，整条通知直接丢失。
+        """
         bark_config = self._config.get("notification.bark")
         if not bark_config or not bark_config.get("enabled", False):
             return False
 
-        # 去掉首尾空白和斜杠：粘贴时多带一个 "/" 会拼出 ".../key//标题/..." 导致 Bark 返回 404
         server_url = (bark_config.get("server_url") or "https://api.day.app").strip().rstrip("/")
-        device_key = (bark_config.get("device_key") or "").strip().strip("/")
-        if not device_key:
+        # POST 接口要求 device_key 与服务端完全一致，不能像 GET 路径那样靠 strip("/") 容错，
+        # 否则尾部多带的 "/" 会变成另一个设备，直接返回 400
+        device_key = (bark_config.get("device_key") or "").strip()
+        if not device_key.strip("/"):
             return False
+        device_key = device_key.strip("/")
 
         try:
             client = await self._get_client("bark")
-            # Bark API格式：https://api.day.app/[device_key]/[title]/[body]
-            # 走 GET 路径，消息过长会超出 URL 长度限制，故分段发送
-            import urllib.parse
-            encoded_title = urllib.parse.quote(title)
-            # 预留 device_key / 域名 / 标题占用的长度
-            budget = max(300, 1500 - len(encoded_title))
-            chunks = _split_by_encoded_len(message, budget)
+            # POST 接口不受 URL 长度限制，只受消息体积限制，超长时分段发送
+            chunks = _split_by_bytes(message, 1800)
             total = len(chunks)
             ok = True
             for index, chunk in enumerate(chunks, 1):
-                head = f"({index}/{total})\n" if total > 1 else ""
-                encoded_message = urllib.parse.quote(head + chunk)
-                url = f"{server_url}/{device_key}/{encoded_title}/{encoded_message}"
-                response = await client.get(url)
+                payload = {
+                    "device_key": device_key,
+                    "title": title,
+                    "body": (f"({index}/{total})\n" if total > 1 else "") + chunk,
+                    "group": "音乐下载器",
+                    "sound": "bell",
+                    "isArchive": 1,
+                }
+                response = await client.post(f"{server_url}/push", json=payload)
                 response.raise_for_status()
+                data = response.json()
+                if data.get("code") not in (200, None):
+                    raise RuntimeError(data.get("message") or f"Bark 返回 {data.get('code')}")
+                if index < total:
+                    await asyncio.sleep(0.3)  # 稍微错开，避免触发频率限制
             return ok
         except Exception as e:
             print(f"发送Bark通知失败: {e}")
