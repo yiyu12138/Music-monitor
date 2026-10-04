@@ -28,3 +28,13 @@ downloads/
 test_*.py
 # 原始高清 logo 源图（运行期只用 static/ 下的 PNG 图标集）
 QQMusic-monitor-logo.jpg
+
+# 打包产物与打包工程（fpk 是给飞牛用的，不需要进镜像）
+*.fpk
+fpk/
+screenshots/
+__pycache__/
+*.pyc
+data/
+downloads/
+.nas/
