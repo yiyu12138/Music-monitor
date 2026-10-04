@@ -10,6 +10,6 @@ LOG="${PKG_VAR}/install.log"
 
 mkdir -p "${DATA_DIR}/data" "${PKG_VAR}" 2>/dev/null || true
 mkdir -p "${MUSIC_DIR}" 2>/dev/null || echo "$(date) - 音乐目录不存在: ${MUSIC_DIR}" >> "${LOG}"
-"${PY}" "${APP_DIR}/cmd/seed_config.py" "${DATA_DIR}" "${MUSIC_DIR}" >> "${LOG}" 2>&1 || exit 1
+"${PY}" "$(dirname "$0")/seed_config.py" "${DATA_DIR}" "${MUSIC_DIR}" >> "${LOG}" 2>&1 || exit 1
 echo "$(date) - 安装初始化完成（数据 ${DATA_DIR}，音乐 ${MUSIC_DIR}）" >> "${LOG}"
 exit 0
