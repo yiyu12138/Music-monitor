@@ -12,7 +12,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --timeout 120 --index-url https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
 
 # 构建期自检：依赖装完后先确认能导入，缺依赖时构建即失败，而不是等容器启动才报错
-RUN python -c "import fastapi, uvicorn, httpx, orjson, mutagen, aiofiles, jinja2; from qqmusic_api.models.request import Credential"
+RUN python -c "import fastapi, uvicorn, httpx, orjson, mutagen, aiofiles, jinja2, cryptography; from qqmusic_api.models.request import Credential"
 
 # 再复制应用代码（data/ 与 downloads/ 已被 .dockerignore 排除：运行期由挂载提供，或程序自动创建）
 COPY . /app/

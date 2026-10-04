@@ -67,7 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
     songSearchInput.addEventListener('input', () => {
         if (songSearchInput.value.trim() === '') {
             // 清空搜索时回到歌单默认提示
-            songListContainer.innerHTML = '<p>请从左侧选择一个歌单。</p>';
+            songListContainer.innerHTML = '<div class="empty-state"><i class="bi bi-music-note-list"></i><div>请从左侧选择一个歌单，或搜索歌曲</div></div>';
             allSongs = [];
             loadedSongsCount = 0;
             songListContainer.onscroll = null;
@@ -82,15 +82,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    // 为登录按钮添加手机号登录切换
-    document.getElementById('login-btn').addEventListener('click', function(e) {
-        // 只有当按钮不是下拉触发状态时，才显示手机号登录选项
-        if (!e.target.classList.contains('dropdown-toggle')) {
-            e.preventDefault();
-            showPhoneLogin();
-        }
-    });
-
     // --- Functions ---
 
     async function handleLoginClick(loginType = 'QQ') {
@@ -101,6 +92,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data.qrcode) {
                 qrcodeImg.src = data.qrcode;
                 qrcodeContainer.style.display = 'block';
+                document.getElementById('phone-login-container').style.display = 'none';
+                document.body.classList.add('qq-login-open');
+                const qrTip = document.getElementById('qrcode-tip');
+                if (qrTip) qrTip.textContent = `请使用${loginType === 'QQ' ? '手机 QQ' : '微信'}扫描二维码`;
                 loginStatus.textContent = `请使用${loginType === 'QQ' ? 'QQ' : '微信'}扫描二维码`;
                 loginCheckInterval = setInterval(checkLoginStatus, 2000);
             } else {
@@ -123,6 +118,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 loginBtn.style.display = 'none';
                 logoutBtn.style.display = 'inline-block';
                 qrcodeContainer.style.display = 'none';
+                document.body.classList.remove('qq-login-open');
                 loadUserInfo();
                 await getUserPlaylists();
             } else if (data.status === 'timeout') {
@@ -130,6 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 loginStatus.textContent = '二维码已过期，请重新获取。';
                 loginBtn.disabled = false;
                 qrcodeContainer.style.display = 'none';
+                document.body.classList.remove('qq-login-open');
             }
         } catch (error) {
             console.error('检查登录状态失败:', error);
@@ -154,6 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // 隐藏二维码登录容器，显示手机号登录容器
         document.getElementById('qrcode-container').style.display = 'none';
         document.getElementById('phone-login-container').style.display = 'block';
+        document.body.classList.add('qq-login-open');
         // 更新登录状态文本
         document.getElementById('login-status').textContent = '请使用手机号登录';
     }
@@ -162,6 +160,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // 隐藏手机号登录容器，显示二维码登录容器
         document.getElementById('phone-login-container').style.display = 'none';
         document.getElementById('qrcode-container').style.display = 'none';
+        document.body.classList.remove('qq-login-open');
+        clearInterval(loginCheckInterval);
         // 更新登录状态文本
         document.getElementById('login-status').textContent = '正在检查登录状态...';
     }
@@ -406,7 +406,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 handleMonitorClick(monitorBtn);
             } else if (playlistItem) {
                 e.preventDefault();
-                document.querySelectorAll('.list-group-item').forEach(i => i.classList.remove('active'));
+                playlistsContainer.querySelectorAll('.list-group-item').forEach(i => i.classList.remove('active'));
                 playlistItem.closest('.list-group-item').classList.add('active');
                 getSongsInPlaylist(playlistItem.dataset.id);
             }
@@ -907,6 +907,49 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // 供其它平台（网易云）复用同一个播放条：key 用于高亮正在播放的行
+    async function playExternal({ key, title, artist, cover, resolve }) {
+        if (currentPlayback.mid === key && audioPlayer.src && !playerBar.classList.contains('player-error')) {
+            if (!audioPlayer.paused && !audioPlayer.ended) { audioPlayer.pause(); return null; }
+            audioPlayer.play();
+            return null;
+        }
+        try {
+            if (playerArtist) playerArtist.textContent = artist || '';
+            playerSongName.textContent = title || '';
+            playerBar.classList.remove('player-error');
+            setPlayerBuffering(true);
+            playerBar.style.display = 'block';
+            document.body.classList.add('has-player');
+            const coverEl = document.getElementById('player-cover');
+            if (coverEl) {
+                if (cover) { coverEl.src = cover; coverEl.style.display = 'block'; }
+                else { coverEl.style.display = 'none'; coverEl.removeAttribute('src'); }
+            }
+            const data = await resolve();
+            currentPlayback = { mid: key, name: title || '' };
+            audioPlayer.src = data.url;
+            await audioPlayer.play();
+            setPlayerBuffering(false);
+            setPlayerPlaying(true);
+            syncPlayButtons();
+            return data;
+        } catch (error) {
+            setPlayerBuffering(false);
+            playerBar.classList.add('player-error');
+            if (playerArtist) playerArtist.textContent = '';
+            playerSongName.textContent = `播放失败: ${error.message || error.name || ''}`.trim();
+            if (playerState) playerState.textContent = '播放失败';
+            return null;
+        }
+    }
+    window.MusicPlayer = {
+        playExternal,
+        sync: () => syncPlayButtons(),
+        current: () => currentPlayback.mid,
+        isPlaying: () => !audioPlayer.paused && !audioPlayer.ended,
+    };
+
     playerToggleBtn.addEventListener('click', () => {
         if (audioPlayer.paused) {
             audioPlayer.play();
@@ -1066,6 +1109,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function uiConfirm(options) {
         return openDialog(typeof options === 'string' ? { message: options } : (options || {}));
     }
+
+    window.uiAlert = uiAlert;
+    window.uiConfirm = uiConfirm;
 
     if (uiDialogEl) {
         uiDialogConfirm.addEventListener('click', () => closeDialog(true));
@@ -1341,7 +1387,7 @@ document.addEventListener('DOMContentLoaded', () => {
             updateSelectionState();
 
             // --- NEW: Update song list buttons based on task status ---
-            document.querySelectorAll('.song-item').forEach(item => {
+            document.querySelectorAll('#song-list .song-item').forEach(item => {
                 const mid = item.dataset.songMid;
                 const button = item.querySelector('.download-btn');
                 if (button) {
@@ -1739,6 +1785,15 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             switchToPage('logs');
         });
+
+        const navNetease = document.getElementById('nav-netease');
+        if (navNetease) {
+            navNetease.addEventListener('click', (e) => {
+                e.preventDefault();
+                switchToPage('netease');
+            });
+        }
+        window.addEventListener('hashchange', () => switchToPage(location.hash.slice(1)));
         
         // 加载配置
         loadConfig();
@@ -1785,42 +1840,32 @@ document.addEventListener('DOMContentLoaded', () => {
     setupLogsPage();
     }
     
+    const PAGES = {
+        music: { section: 'music-content', nav: 'nav-music' },
+        netease: { section: 'netease-content', nav: 'nav-netease' },
+        config: { section: 'config-content', nav: 'nav-config' },
+        logs: { section: 'logs-content', nav: 'nav-logs' },
+    };
+
     function switchToPage(pageName) {
-        const musicContent = document.getElementById('music-content');
-        const configContent = document.getElementById('config-content');
-        const logsContent = document.getElementById('logs-content');
-        const navMusic = document.getElementById('nav-music');
-        const navConfig = document.getElementById('nav-config');
-        const navLogs = document.getElementById('nav-logs');
-
-        const setActive = (page) => {
-            [navMusic, navConfig, navLogs].forEach(nav => nav && nav.classList.remove('active'));
-            if (page === 'music' && navMusic) navMusic.classList.add('active');
-            if (page === 'config' && navConfig) navConfig.classList.add('active');
-            if (page === 'logs' && navLogs) navLogs.classList.add('active');
-        };
-
-        if (pageName === 'music') {
-            if (musicContent) musicContent.style.display = 'flex';
-            if (configContent) configContent.style.display = 'none';
-            if (logsContent) logsContent.style.display = 'none';
-            setActive('music');
-            stopLogPolling();
-        } else if (pageName === 'config') {
-            if (musicContent) musicContent.style.display = 'none';
-            if (configContent) configContent.style.display = 'flex';
-            if (logsContent) logsContent.style.display = 'none';
-            setActive('config');
-            stopLogPolling();
-            loadConfig(); // 切换到配置页时重新加载最新配置
-        } else if (pageName === 'logs') {
-            if (musicContent) musicContent.style.display = 'none';
-            if (configContent) configContent.style.display = 'none';
-            if (logsContent) logsContent.style.display = 'flex';
-            setActive('logs');
-            startLogPolling();
-        }
+        if (!PAGES[pageName]) pageName = 'music';
+        Object.entries(PAGES).forEach(([name, page]) => {
+            const section = document.getElementById(page.section);
+            const nav = document.getElementById(page.nav);
+            const on = name === pageName;
+            if (section) section.style.display = on ? 'flex' : 'none';
+            if (nav) {
+                nav.classList.toggle('active', on);
+                if (on) nav.setAttribute('aria-current', 'page'); else nav.removeAttribute('aria-current');
+            }
+        });
+        document.body.dataset.page = pageName;
+        if (location.hash !== '#' + pageName) history.replaceState(null, '', '#' + pageName);
+        if (pageName === 'logs') startLogPolling(); else stopLogPolling();
+        if (pageName === 'config') loadConfig();
+        document.dispatchEvent(new CustomEvent('page:change', { detail: pageName }));
     }
+    window.switchToPage = switchToPage;
 
     // --- 运行日志页面 ---
     const LOG_BUFFER_LIMIT = 3000;
@@ -1955,6 +2000,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!container) return;
         try {
             const response = await fetch('/api/monitored-playlists-config');
+            if (!response.ok) {
+                container.innerHTML = '<div class="text-muted small">登录 QQ 音乐并开启歌单监控后，可在这里为每个歌单设置下载目录。</div>';
+                return;
+            }
             const data = await response.json();
             const playlists = data || {};
             const ids = Object.keys(playlists);
@@ -2029,6 +2078,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // 更新动态字段显示
         toggleWebhookFields();
+        toggleBarkFields();
         toggleWecomFields();
         toggleLyricFields();
     }
@@ -2118,4 +2168,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const container = document.getElementById('lyric-options-container');
         container.style.display = enabled ? 'block' : 'none';
     }
+
+    // 首屏路由（放在最后：此时所有 const/let 都已初始化）
+    switchToPage((location.hash || '#music').slice(1));
+
+    const qrCloseBtn = document.getElementById('qr-close-btn');
+    if (qrCloseBtn) qrCloseBtn.addEventListener('click', backToQrcode);
 });

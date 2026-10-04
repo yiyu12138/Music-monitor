@@ -17,6 +17,7 @@ import os
 import qq_music
 import monitor
 import tasks
+import netease_app
 from tasks import add_song_to_queue, load_download_tasks, start_download_workers
 from download_paths import default_playlist_dir, resolve_target_dir, resolve_scan_dir
 from local_files import DirIndex, describe_file, find_existing_file, human_size
@@ -50,6 +51,8 @@ async def lifespan(app: FastAPI):
     await song_index_manager.update_index()
     song_index_manager.start_background_update()
     print(f"应用启动时歌曲索引状态: {len(song_index_manager.get_existing_song_basenames())} 首本地歌曲")
+    # 网易云模块（独立的任务队列与监控）
+    await netease_app.startup()
     
     yield
     
@@ -66,8 +69,10 @@ async def lifespan(app: FastAPI):
     await tasks._save_download_tasks()
     
     await qq_music.close_qqmusic_session()
+    await netease_app.shutdown()
 
-app = FastAPI(title="QQ音乐下载器", lifespan=lifespan)
+app = FastAPI(title="Music Monitor", lifespan=lifespan)
+app.include_router(netease_app.router)
 
 # 定义数据和下载目录
 DATA_DIR = "data"
@@ -709,44 +714,6 @@ async def reset_config():
         raise HTTPException(status_code=500, detail="重置配置失败")
 
 # --- 歌单监控 API ---
-
-# 测试端点：直接返回所有本地歌曲信息
-@app.get("/api/test-local-songs")
-async def test_local_songs():
-    """返回所有本地歌曲信息"""
-    from utils import song_index_manager
-    
-    return {
-        "local_songs": list(song_index_manager._index["by_basename"].values()),
-        "count": len(song_index_manager._index["by_basename"])
-    }
-
-# 测试端点：直接测试本地歌曲匹配
-@app.get("/api/test-local-matching")
-async def test_local_matching():
-    """测试本地歌曲匹配功能"""
-    from utils import song_index_manager
-    
-    # 测试匹配我们的本地歌曲
-    test_cases = [
-        ("SPOTLIGHT HUNTER", ["三角洲行动", "SIENA"]),
-        ("Dawn", ["三角洲行动", "Lithium Done"]),
-        ("Lemon", ["米津玄師"])
-    ]
-    
-    results = []
-    for song_name, singer_names in test_cases:
-        matching_songs = song_index_manager.find_matching_songs(song_name, singer_names)
-        results.append({
-            "test_song": f"{song_name} - {', '.join(singer_names)}",
-            "matching_songs": matching_songs,
-            "match_count": len(matching_songs)
-        })
-    
-    return {
-        "local_songs": list(song_index_manager._index["by_basename"].values()),
-        "test_results": results
-    }
 
 @app.post("/api/monitor/{playlist_id}", dependencies=[Depends(check_auth_status)])
 async def toggle_playlist_monitoring(playlist_id: str):

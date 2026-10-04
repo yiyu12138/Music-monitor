@@ -9,3 +9,5 @@ httpx[http2]>=0.28.1
 aiofiles>=25.1.0
 orjson>=3.11.9
 mutagen>=1.48.1
+# 网易云接口加密（weapi / eapi）
+cryptography>=42.0

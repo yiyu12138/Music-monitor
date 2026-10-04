@@ -90,9 +90,9 @@ class SongIndexManager:
         by_fullname = {}
 
         download_history = self._load_download_history()
-        print(f"加载下载历史，包含 {len(download_history)} 个已完成任务")
+        pass  # 原逐条日志会刷屏（几千首歌时日志页被淹没），已去掉
 
-        print(f"开始扫描下载目录: {DOWNLOADS_DIR}")
+        pass  # 原逐条日志会刷屏（几千首歌时日志页被淹没），已去掉
         if os.path.exists(DOWNLOADS_DIR):
             # 递归扫描：歌单子目录、日期子目录里的文件也要索引到
             files = []
@@ -104,11 +104,11 @@ class SongIndexManager:
                     if os.path.splitext(filename)[1].lower() in NON_AUDIO_EXTENSIONS:
                         continue
                     files.append(os.path.join(root, filename))
-            print(f"下载目录包含 {len(files)} 个文件（含子目录）")
+            pass  # 原逐条日志会刷屏（几千首歌时日志页被淹没），已去掉
 
             for full_path in files:
                 filename = os.path.basename(full_path)
-                print(f"处理文件: {full_path}")
+                pass  # 原逐条日志会刷屏（几千首歌时日志页被淹没），已去掉
                 if os.path.isfile(full_path):
                     basename, ext = os.path.splitext(filename)
                     file_size = os.path.getsize(full_path)
@@ -122,12 +122,12 @@ class SongIndexManager:
                     for task in download_history:
                         if task["clean_name"] == clean_basename:
                             matched_task = task
-                            print(f"  完全匹配成功")
+                            pass  # 原逐条日志会刷屏（几千首歌时日志页被淹没），已去掉
                             break
 
                         if task["clean_name"] in clean_basename or clean_basename in task["clean_name"]:
                             matched_task = task
-                            print(f"  包含匹配成功")
+                            pass  # 原逐条日志会刷屏（几千首歌时日志页被淹没），已去掉
                             break
 
                         def get_core_keywords(name):
@@ -141,15 +141,15 @@ class SongIndexManager:
 
                         if task_core in basename_core or basename_core in task_core:
                             matched_task = task
-                            print(f"  核心关键词匹配成功")
+                            pass  # 原逐条日志会刷屏（几千首歌时日志页被淹没），已去掉
                             break
 
                     if matched_task:
                         quality = matched_task["quality"]
-                        print(f"匹配到下载历史，获取音质: {quality}")
+                        pass  # 原逐条日志会刷屏（几千首歌时日志页被淹没），已去掉
                     else:
                         quality = quality_for_file(full_path)
-                        print(f"未匹配到下载历史，按文件名/扩展名推断音质: {quality}")
+                        pass  # 原逐条日志会刷屏（几千首歌时日志页被淹没），已去掉
 
                     song_info = {
                         "filename": filename,
@@ -163,7 +163,7 @@ class SongIndexManager:
 
                     by_basename[basename] = song_info
                     by_fullname[filename] = song_info
-                    print(f"已索引文件: {filename}, 大小: {human_size(file_size)}, 音质: {quality}, 本程序下载: {matched_task is not None}")
+                    pass  # 原逐条日志会刷屏（几千首歌时日志页被淹没），已去掉
         else:
             print(f"下载目录不存在: {DOWNLOADS_DIR}")
 
@@ -198,8 +198,8 @@ class SongIndexManager:
         Returns:
             List[Dict[str, Any]]: 匹配的歌曲信息列表
         """
-        print(f"\n=== 开始匹配歌曲: {song_name} - {', '.join(singer_names)} ===")
-        print(f"当前已索引的本地歌曲: {list(self._index['by_basename'].keys())}")
+        pass  # 原逐条日志会刷屏（几千首歌时日志页被淹没），已去掉
+        pass  # 原逐条日志会刷屏（几千首歌时日志页被淹没），已去掉
 
         possible_basenames = self._generate_possible_basenames(song_name, singer_names)
 
@@ -229,7 +229,7 @@ class SongIndexManager:
                 simplified_filename = re.sub(r'[()（）\[\]【】\-]', "", basename).strip().upper()
                 simplified_filename = simplified_filename.replace(" ", "")
 
-                print(f"  比较: {simplified_song_name} vs {simplified_filename}")
+                pass  # 原逐条日志会刷屏（几千首歌时日志页被淹没），已去掉
 
                 if simplified_song_name in simplified_filename:
                     matching_songs.append(song_info)
@@ -285,7 +285,7 @@ class SongIndexManager:
 
         possible_basenames = list(set(possible_basenames))
 
-        print(f"生成的可能文件名: {possible_basenames}")
+        pass  # 原逐条日志会刷屏（几千首歌时日志页被淹没），已去掉
         return possible_basenames
 
 

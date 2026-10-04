@@ -1,0 +1,4 @@
+# 统一用 LF：start.sh 等脚本在 Linux 容器里必须是 LF，否则报 "bad interpreter"
+* text=auto eol=lf
+*.png binary
+*.jpg binary
