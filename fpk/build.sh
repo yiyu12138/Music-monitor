@@ -10,7 +10,7 @@
 #   这样目标机器无需联网、也无需现场构建即可安装。
 # - 需要 fnpack（飞牛自带，/usr/local/bin/fnpack）。
 
-set -euo pipefail
+set -eu
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${HERE}/.." && pwd)"
@@ -37,14 +37,18 @@ rm -f "${APP}/app/docker/music-monitor-image.tar.gz"
 
 # 2) 同步版本号到 manifest 与各脚本
 sed -i "s/^version .*/version               = ${VERSION}/" "${APP}/manifest"
-grep -rl "${APPNAME}:_VERSION_" "${APP}/cmd" "${APP}/app/docker" 2>/dev/null | while read -r f; do
-    sed -i "s#${APPNAME}:_VERSION_#${IMAGE}#g" "${f}"
+# 把脚本与 compose 里的镜像 tag 统一改成当前版本
+for f in "${APP}"/cmd/* "${APP}/app/docker/docker-compose.yaml"; do
+    [ -f "${f}" ] || continue
+    sed -i "s#${APPNAME}:[0-9][0-9.]*#${IMAGE}#g" "${f}"
 done
-grep -rl "music-monitor:1\.[0-9.]*" "${APP}/cmd" "${APP}/app/docker" 2>/dev/null | while read -r f; do
-    sed -i "s#music-monitor:[0-9][0-9.]*#${IMAGE}#g" "${f}"
-done
+echo "==> 镜像 tag 已同步为 ${IMAGE}"
 
+# 归一化权限：Windows 上打包/传输过来的 tar 可能带出 0000 权限，应用中心会读不到
+find "${APP}" -type d -exec chmod 755 {} +
+find "${APP}" -type f -exec chmod 644 {} +
 chmod +x "${APP}"/cmd/*
+echo "==> 权限已归一化"
 
 # 3) 准备镜像
 if ! docker image inspect "${IMAGE}" >/dev/null 2>&1; then
