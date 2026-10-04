@@ -41,8 +41,18 @@ def default_song_dir() -> str:
     return config.get("download.default_dir", "") or "downloads/save"
 
 
+def playlist_subfolder_enabled() -> bool:
+    """歌单下载是否按歌单名建子文件夹（关闭后全部平铺到下载根目录）"""
+    value = config.get("download.playlist_subfolder", True)
+    if isinstance(value, str):
+        return value.strip().lower() in ("true", "1", "yes", "on")
+    return bool(value)
+
+
 def default_playlist_dir(title: str = "", playlist_id=None) -> str:
-    """歌单下载位置留空时的默认目录：<下载根目录>/<歌单名称>"""
+    """歌单下载位置留空时的默认目录：<下载根目录>/<歌单名称>（关闭子文件夹时直接用下载根目录）"""
+    if not playlist_subfolder_enabled():
+        return downloads_root()
     if title:
         name = sanitize_component(title)
     else:

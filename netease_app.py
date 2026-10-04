@@ -88,7 +88,12 @@ def single_dir() -> str:
 
 
 def playlist_dir(title: str, override: str = "") -> str:
-    return (override or "").strip() or os.path.join(_downloads_root(), _sanitize(title or "网易云歌单"))
+    from download_paths import playlist_subfolder_enabled
+    if (override or "").strip():
+        return override.strip()
+    if not playlist_subfolder_enabled():
+        return _downloads_root()
+    return os.path.join(_downloads_root(), _sanitize(title or "网易云歌单"))
 
 
 async def _save_tasks():

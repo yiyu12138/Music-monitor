@@ -474,6 +474,11 @@
                             <input type="text" class="form-control" id="default-download-dir" value="" disabled>
                             <div class="form-text">单曲下载的目录。歌单下载若未单独指定目录，则保存到 /app/downloads/&lt;歌单名称&gt;/。</div>
                         </div>
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="playlist-subfolder" name="download.playlist_subfolder">
+                            <label class="form-check-label" for="playlist-subfolder">歌单下载按歌单名建子文件夹</label>
+                            <div class="form-text">关闭后，QQ 音乐与网易云的所有歌单都平铺保存到下载根目录（/app/downloads），适合已有统一音乐库的场景。单独设置了目录的监控歌单不受影响。</div>
+                        </div>
                         <div class="mb-3" id="monitored-dir-list">
                             <div class="text-muted small">暂无监控歌单。先到「音乐」页开启歌单监控，再回来配置。</div>
                         </div>

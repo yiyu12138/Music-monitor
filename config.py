@@ -19,6 +19,8 @@ DEFAULT_CONFIG = {
         "retry_interval_seconds": 24 * 3600,
         "default_dir": "/app/downloads/save",
         "downloads_root": "/app/downloads",
+        # 歌单下载是否按歌单名建子文件夹；关掉则所有歌单都平铺保存到 downloads_root
+        "playlist_subfolder": True,
         "write_tags": True,
         "write_cover": True,
         "write_lyrics": True,
