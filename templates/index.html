@@ -361,6 +361,7 @@
                 </div>
                 <nav class="config-toc" aria-label="配置分区">
                     <a href="#cfg-download"><i class="bi bi-download"></i> 下载</a>
+                    <a href="#cfg-sources"><i class="bi bi-plug"></i> 下载源</a>
                     <a href="#cfg-location"><i class="bi bi-folder2-open"></i> 保存位置</a>
                     <a href="#cfg-meta"><i class="bi bi-tags"></i> 标签与歌词</a>
                     <a href="#cfg-monitor"><i class="bi bi-broadcast"></i> 歌单监控</a>
@@ -401,6 +402,46 @@
                         <div class="cfg-label"><label for="retry-interval">限额冷却后重试间隔（秒）</label><small>QQ 音乐账号每天约 190 首的下载限额用完后，等这么久再自动重试</small></div>
                         <input type="number" class="form-control cfg-num" id="retry-interval" min="60" name="download.retry_interval_seconds">
                     </div>
+                </section>
+
+                <!-- 下载源（洛雪格式自定义源） -->
+                <section class="cfg-card cfg-wide" id="cfg-sources">
+                    <div class="cfg-card-head">
+                        <span class="cfg-ico"><i class="bi bi-plug"></i></span>
+                        <div><h3>下载源</h3><p>兼容洛雪音乐（LX Music）自定义源脚本。下载时按列表顺序优先使用这些源取链接，都取不到时自动回退到账号官方渠道</p></div>
+                        <span class="scope-tag both">两个平台</span>
+                    </div>
+                    <div id="sources-unavailable" class="src-alert" hidden>
+                        <i class="bi bi-exclamation-triangle"></i> 当前运行环境缺少 JS 引擎（quickjs），自定义源不可用。请重新安装依赖或更新到最新版本。
+                    </div>
+                    <div class="src-add">
+                        <div class="seg-tabs src-tabs" id="src-add-tabs" role="tablist">
+                            <button type="button" class="active" data-mode="url" role="tab"><i class="bi bi-link-45deg"></i> 链接导入</button>
+                            <button type="button" data-mode="file" role="tab"><i class="bi bi-file-earmark-code"></i> 本地文件</button>
+                            <button type="button" data-mode="paste" role="tab"><i class="bi bi-clipboard"></i> 粘贴脚本</button>
+                        </div>
+                        <div class="src-pane" data-pane="url">
+                            <div class="input-group">
+                                <input type="url" class="form-control" id="src-url" placeholder="洛雪自定义源脚本链接，例如 https://…/xxx.js">
+                                <button class="btn btn-primary" type="button" id="src-add-url"><i class="bi bi-plus-lg"></i> 添加</button>
+                            </div>
+                        </div>
+                        <div class="src-pane" data-pane="file" hidden>
+                            <label class="src-drop" for="src-file">
+                                <i class="bi bi-cloud-arrow-up"></i>
+                                <span>点击选择或拖入 <code>.js</code> 源脚本文件</span>
+                                <input type="file" id="src-file" accept=".js,text/javascript,application/javascript" hidden>
+                            </label>
+                        </div>
+                        <div class="src-pane" data-pane="paste" hidden>
+                            <textarea class="form-control src-code" id="src-script" rows="6" spellcheck="false" placeholder="/**&#10; * @name 源名称&#10; * @version 1.0.0&#10; */&#10;lx.on(lx.EVENT_NAMES.request, …)"></textarea>
+                            <button class="btn btn-primary btn-sm mt-2" type="button" id="src-add-script"><i class="bi bi-plus-lg"></i> 添加</button>
+                        </div>
+                    </div>
+                    <div class="src-list" id="src-list">
+                        <div class="src-empty"><i class="bi bi-plug"></i><div>还没有添加下载源</div><small>未添加时，下载全部走账号官方渠道（与之前一致）</small></div>
+                    </div>
+                    <div class="src-foot"><i class="bi bi-info-circle"></i> 列表越靠上越优先；每个源按「Hi-Res → 无损 → 320k → 128k」依次尝试它支持的音质。源脚本来自第三方，请只添加你信任的源。</div>
                 </section>
 
                 <!-- 保存位置 -->
@@ -629,5 +670,6 @@
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js" defer></script>
 <script src="/static/script.js?v={{ current_timestamp }}"></script>
 <script src="/static/netease.js?v={{ current_timestamp }}"></script>
+    <script src="/static/sources.js?v={{ current_timestamp }}"></script>
 </body>
 </html>

@@ -184,6 +184,17 @@ async def require_login():
     return acc
 
 
+async def require_download_ready():
+    """下载类接口的门槛：网易云已登录，或者有可用的自定义下载源"""
+    try:
+        from lx_source import manager as source_manager
+        if source_manager.has_usable("netease"):
+            return None
+    except Exception:
+        pass
+    return await require_login()
+
+
 # ---------------- 通知 ----------------
 async def _notify(kind: str, *args):
     try:
@@ -225,6 +236,34 @@ async def enqueue(song: dict, target_dir: str = "", force: bool = False, source:
     return True
 
 
+async def _resolve_by_sources(sid: str, song: dict):
+    """用自定义下载源获取网易云歌曲直链；返回与 client.song_url 相同结构的 dict，失败返回 None"""
+    try:
+        from lx_source import manager as source_manager
+    except Exception:
+        return None
+    if not source_manager.list():
+        return None
+    music_info = {
+        "songmid": str(sid),
+        "name": song.get("name", ""),
+        "singer": "、".join(a.get("name", "") for a in song.get("singer", [])),
+        "albumName": song.get("album", ""),
+        "img": song.get("cover", ""),
+        "interval": song.get("interval", 0),
+        "source": "wy",
+    }
+    try:
+        r = await source_manager.resolve("netease", music_info)
+    except Exception as e:
+        print(f"[网易云] 下载源解析失败，回退官方渠道: {e}")
+        return None
+    if not r:
+        return None
+    return {"url": r["url"], "ext": r["extension"], "level": r["level"], "size": 0,
+            "trial": False, "quality_label": r["quality"]}
+
+
 async def _download(sid: str):
     task = tasks[sid]
     song = task["song"]
@@ -245,11 +284,14 @@ async def _download(sid: str):
             print(f"[网易云] 本地已存在，跳过: {existing}")
             return
 
-    try:
-        info = await client.song_url(sid, DOWNLOAD_LEVEL)
-    except Exception as e:
-        info = None
-        print(f"[网易云] 获取链接异常 {sid}: {e}")
+    # 先试自定义下载源（洛雪格式），全部失败再回退账号官方渠道
+    info = await _resolve_by_sources(sid, song)
+    if not info:
+        try:
+            info = await client.song_url(sid, DOWNLOAD_LEVEL)
+        except Exception as e:
+            info = None
+            print(f"[网易云] 获取链接异常 {sid}: {e}")
     if not info:
         msg = "无法获取下载链接（无版权 / 需要 VIP / 登录失效）"
         if client.has_login_cookie and not await account(force=True):
@@ -267,7 +309,7 @@ async def _download(sid: str):
     safe = re.sub(r'[\\/*?:"<>|]', "", task["song_name"]).strip().rstrip(".")
     path = os.path.join(target_dir, safe + info["ext"])
     tmp = path + ".part"
-    quality = LEVELS.get(info["level"], info["level"])
+    quality = info.get("quality_label") or LEVELS.get(info["level"], info["level"])
     task.update(status="downloading", quality=quality, progress=0)
     await _save_tasks()
     try:
@@ -673,7 +715,7 @@ class DownloadBody(BaseModel):
 
 @router.post("/download")
 async def download(body: DownloadBody):
-    await require_login()
+    await require_download_ready()
     song = body.song
     if not song.get("id"):
         raise HTTPException(400, "缺少歌曲 id")

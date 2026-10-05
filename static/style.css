@@ -1516,3 +1516,43 @@ body.has-player .page-logs .log-panel { height: calc(100vh - 190px - var(--playe
     .login-hero p { font-size: .82rem; }
     .page-logs .log-panel { height: calc(100vh - 220px); }
 }
+
+
+/* ---------- 下载源（洛雪格式自定义源） ---------- */
+.src-alert { margin: .2rem 0 .8rem; padding: .6rem .8rem; border-radius: 12px; font-size: .82rem; background: color-mix(in srgb, var(--warning, #f59e0b) 14%, transparent); color: var(--text); }
+.src-add { padding: .9rem; border-radius: 16px; background: var(--surface-2); border: 1px solid var(--border); }
+.src-tabs { max-width: 420px; margin-bottom: .8rem; }
+.src-drop { display: flex; flex-direction: column; align-items: center; gap: .35rem; padding: 1.1rem; border: 1.5px dashed var(--border); border-radius: 14px; color: var(--text-2); font-size: .85rem; cursor: pointer; transition: all .18s ease; text-align: center; }
+.src-drop i { font-size: 1.6rem; color: var(--accent); }
+.src-drop:hover, .src-drop.dragover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, transparent); color: var(--text); }
+.src-code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .8rem; }
+.src-list { display: flex; flex-direction: column; gap: .6rem; margin-top: .9rem; }
+.src-empty { display: flex; flex-direction: column; align-items: center; gap: .25rem; padding: 1.2rem; color: var(--text-2); font-size: .88rem; border-radius: 14px; border: 1px dashed var(--border); }
+.src-empty i { font-size: 1.5rem; opacity: .6; }
+.src-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: .8rem; align-items: center; padding: .75rem .85rem; border-radius: 14px; background: var(--surface); border: 1px solid var(--border); }
+.src-item.off { opacity: .6; }
+.src-order { display: flex; flex-direction: column; align-items: center; gap: .1rem; }
+.src-order .src-rank { font-weight: 800; font-size: .8rem; color: var(--text-2); }
+.src-order button { border: none; background: transparent; color: var(--text-2); padding: 0 .2rem; line-height: 1; }
+.src-order button:hover:not(:disabled) { color: var(--accent); }
+.src-order button:disabled { opacity: .25; }
+.src-main { min-width: 0; }
+.src-title { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; font-weight: 700; }
+.src-title .src-ver { font-weight: 600; font-size: .72rem; color: var(--text-2); }
+.src-state { font-size: .7rem; font-weight: 700; padding: .1rem .45rem; border-radius: 99px; }
+.src-state.ok { color: #059669; background: color-mix(in srgb, #10b981 15%, transparent); }
+.src-state.err { color: #dc2626; background: color-mix(in srgb, #ef4444 14%, transparent); }
+.src-state.off { color: var(--text-2); background: var(--surface-3); }
+.src-desc { font-size: .78rem; color: var(--text-2); margin-top: .15rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.src-err { font-size: .76rem; color: #dc2626; margin-top: .2rem; word-break: break-all; }
+.src-plats { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .35rem; }
+.src-plat { font-size: .7rem; padding: .1rem .45rem; border-radius: 8px; background: var(--surface-3); color: var(--text-2); }
+.src-plat.hit { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--text); font-weight: 700; }
+.src-ops { display: flex; align-items: center; gap: .35rem; }
+.src-ops .btn { padding: .2rem .5rem; }
+.src-foot { margin-top: .8rem; font-size: .76rem; color: var(--text-2); }
+@media (max-width: 767px) {
+    .src-item { grid-template-columns: minmax(0, 1fr); }
+    .src-order { flex-direction: row; justify-content: flex-start; }
+    .src-ops { flex-wrap: wrap; }
+}

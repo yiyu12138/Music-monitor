@@ -18,6 +18,7 @@ import qq_music
 import monitor
 import tasks
 import netease_app
+import sources_api
 from tasks import add_song_to_queue, load_download_tasks, start_download_workers
 from download_paths import default_playlist_dir, resolve_target_dir, resolve_scan_dir
 from local_files import DirIndex, describe_file, find_existing_file, human_size
@@ -50,6 +51,12 @@ async def lifespan(app: FastAPI):
     print(f"应用启动时歌曲索引状态: {len(song_index_manager.get_existing_song_basenames())} 首本地歌曲")
     # 网易云模块（独立的任务队列与监控）
     await netease_app.startup()
+    # 自定义下载源（洛雪格式）：加载已添加的源脚本
+    try:
+        from lx_source import manager as source_manager
+        await source_manager.startup()
+    except Exception as e:
+        print(f"[下载源] 初始化失败: {e}")
     
     yield
     
@@ -68,6 +75,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Music Monitor", lifespan=lifespan)
 app.include_router(netease_app.router)
+app.include_router(sources_api.router)
 
 # 定义数据和下载目录
 DATA_DIR = "data"
@@ -88,6 +96,19 @@ async def check_auth_status():
     await qq_music.auth_completed.wait()
     if not qq_music.is_login_valid():
         raise HTTPException(status_code=401, detail="用户未登录或凭证无效")
+
+async def check_download_allowed():
+    """下载类接口的门槛：QQ 已登录，或者有可用的自定义下载源（不需要账号也能取链）"""
+    await qq_music.auth_completed.wait()
+    if qq_music.is_login_valid():
+        return
+    try:
+        from lx_source import manager as source_manager
+        if source_manager.has_usable("qq"):
+            return
+    except Exception:
+        pass
+    raise HTTPException(status_code=401, detail="用户未登录或凭证无效（也没有可用的下载源）")
 
 @app.get("/api/check-auth")
 async def check_auth():
@@ -353,7 +374,7 @@ async def download_playlist(playlist_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/download/{song_mid}", dependencies=[Depends(check_auth_status)])
+@app.post("/api/download/{song_mid}", dependencies=[Depends(check_download_allowed)])
 async def download_song(
     song_mid: str,
     song_name: str,
