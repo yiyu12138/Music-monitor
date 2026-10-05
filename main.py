@@ -98,17 +98,16 @@ async def check_auth_status():
         raise HTTPException(status_code=401, detail="用户未登录或凭证无效")
 
 async def check_download_allowed():
-    """下载类接口的门槛：QQ 已登录，或者有可用的自定义下载源（不需要账号也能取链）"""
+    """下载类接口的门槛：按「下载渠道」判断 QQ 官方登录 / 可用下载源是否满足其一"""
+    from lx_source import manager as source_manager, use_official, use_source
     await qq_music.auth_completed.wait()
-    if qq_music.is_login_valid():
+    if use_source() and source_manager.has_usable("qq"):
         return
-    try:
-        from lx_source import manager as source_manager
-        if source_manager.has_usable("qq"):
+    if use_official():
+        if qq_music.is_login_valid():
             return
-    except Exception:
-        pass
-    raise HTTPException(status_code=401, detail="用户未登录或凭证无效（也没有可用的下载源）")
+        raise HTTPException(status_code=401, detail="用户未登录或凭证无效（也没有可用的下载源）")
+    raise HTTPException(status_code=400, detail="当前设置为只用下载源，但没有可用的 QQ 音乐下载源，请先在「配置 → 下载源」添加")
 
 @app.get("/api/check-auth")
 async def check_auth():

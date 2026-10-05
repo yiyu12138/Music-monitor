@@ -185,14 +185,13 @@ async def require_login():
 
 
 async def require_download_ready():
-    """下载类接口的门槛：网易云已登录，或者有可用的自定义下载源"""
-    try:
-        from lx_source import manager as source_manager
-        if source_manager.has_usable("netease"):
-            return None
-    except Exception:
-        pass
-    return await require_login()
+    """下载类接口的门槛：按「下载渠道」判断官方登录 / 可用下载源是否满足其一"""
+    from lx_source import manager as source_manager, use_official, use_source
+    if use_source() and source_manager.has_usable("netease"):
+        return None
+    if use_official():
+        return await require_login()
+    raise HTTPException(status_code=400, detail="当前设置为只用下载源，但没有可用的网易云下载源，请先在「配置 → 下载源」添加")
 
 
 # ---------------- 通知 ----------------
@@ -284,24 +283,37 @@ async def _download(sid: str):
             print(f"[网易云] 本地已存在，跳过: {existing}")
             return
 
-    # 先试自定义下载源（洛雪格式），全部失败再回退账号官方渠道
-    info = await _resolve_by_sources(sid, song)
-    if not info:
+    # 按「下载渠道」取下载链接：
+    #   official 只用账号官方；source 只用下载源；both 先官方，取不到（含仅试听）再回退下载源
+    from lx_source import use_official, use_source, download_channel
+    info = None
+    official_msg = ""
+    if use_official():
         try:
             info = await client.song_url(sid, DOWNLOAD_LEVEL)
         except Exception as e:
             info = None
             print(f"[网易云] 获取链接异常 {sid}: {e}")
+        if info and info.get("trial"):
+            official_msg = "仅能获取试听片段（该歌曲需要 VIP 或单曲购买）"
+            info = None
+        elif not info:
+            official_msg = "无法获取下载链接（无版权 / 需要 VIP / 登录失效）"
+            if client.has_login_cookie and not await account(force=True):
+                official_msg = "网易云登录已失效，请重新登录"
+                await _notify("text", "网易云音乐登录已失效，请到网页「网易云」页重新登录。", "网易云登录已失效")
+        if not info and use_source():
+            print(f"[下载渠道] 网易云官方渠道不可用（{official_msg}），回退下载源: {task['song_name']}")
+    if not info and use_source():
+        info = await _resolve_by_sources(sid, song)
     if not info:
-        msg = "无法获取下载链接（无版权 / 需要 VIP / 登录失效）"
-        if client.has_login_cookie and not await account(force=True):
-            msg = "网易云登录已失效，请重新登录"
-            await _notify("text", "网易云音乐登录已失效，请到网页「网易云」页重新登录。", "网易云登录已失效")
-        task.update(status="failed", error=msg)
-        await _notify("fail", name, msg)
-        return
-    if info["trial"]:
-        msg = "仅能获取试听片段（该歌曲需要 VIP 或单曲购买）"
+        channel = download_channel()
+        if channel == "source":
+            msg = "下载源未取到链接（当前设置为只用下载源）"
+        elif channel == "official":
+            msg = official_msg or "无法获取下载链接"
+        else:
+            msg = f"{official_msg or '官方渠道未取到链接'}，下载源也未取到链接"
         task.update(status="failed", error=msg)
         await _notify("fail", name, msg)
         return

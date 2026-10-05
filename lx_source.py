@@ -740,3 +740,24 @@ def _guess_ext(url: str) -> str:
 
 
 manager = SourceManager()
+
+
+CHANNELS = ("official", "source", "both")
+
+
+def download_channel() -> str:
+    """当前下载渠道：official / source / both（默认 both：先官方，失败回退下载源）"""
+    try:
+        from config import config as app_config
+        v = str(app_config.get("download.channel", "both") or "both").lower()
+    except Exception:
+        v = "both"
+    return v if v in CHANNELS else "both"
+
+
+def use_official() -> bool:
+    return download_channel() in ("official", "both")
+
+
+def use_source() -> bool:
+    return download_channel() in ("source", "both")

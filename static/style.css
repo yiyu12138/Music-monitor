@@ -1071,7 +1071,7 @@ body.qq-login-open #qq-login-stage { display: grid; }
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1rem;
-    max-width: 1280px;
+    max-width: 1680px;
     align-items: start;
 }
 .cfg-card {
@@ -1555,4 +1555,49 @@ body.has-player .page-logs .log-panel { height: calc(100vh - 190px - var(--playe
     .src-item { grid-template-columns: minmax(0, 1fr); }
     .src-order { flex-direction: row; justify-content: flex-start; }
     .src-ops { flex-wrap: wrap; }
+}
+
+
+/* ---------- 下载渠道（官方 / 下载源 / 两者） ---------- */
+.cfg-row-stack { flex-direction: column; align-items: stretch; gap: .6rem; flex-wrap: nowrap; }
+.cfg-row.cfg-row-stack > .cfg-label { flex: 0 0 auto; }
+.channel-pick { display: grid; gap: .45rem; }
+.channel-opt { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: .7rem; padding: .6rem .75rem; border: 1.5px solid var(--border); border-radius: 13px; background: var(--surface); cursor: pointer; transition: border-color .15s ease, background .15s ease, box-shadow .15s ease; margin: 0; }
+.channel-opt:hover { border-color: var(--primary-border); }
+.channel-opt input { position: absolute; opacity: 0; pointer-events: none; }
+.channel-opt .ch-ico { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: var(--surface-3); color: var(--text-2); font-size: 1rem; transition: all .15s ease; }
+.channel-opt .ch-text { display: flex; flex-direction: column; min-width: 0; }
+.channel-opt .ch-text b { font-size: .86rem; }
+.channel-opt .ch-text small { font-size: .74rem; color: var(--text-3); }
+.channel-opt .ch-tag { font-size: .66rem; font-weight: 800; padding: .1rem .45rem; border-radius: 99px; color: var(--primary); background: var(--primary-soft); }
+.channel-opt:has(input:checked) { border-color: var(--primary); background: var(--primary-soft); box-shadow: 0 6px 18px -12px var(--primary); }
+.channel-opt:has(input:checked) .ch-ico { background: var(--primary); color: #fff; }
+.channel-opt:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
+.channel-note { font-size: .76rem; padding: .45rem .65rem; border-radius: 10px; background: var(--surface-2); color: var(--text-2); }
+.channel-note:empty { display: none; }
+.channel-note.warn { background: color-mix(in srgb, #f59e0b 14%, transparent); color: var(--text); }
+
+/* 「下载」「下载源」并排时让两张卡等高，下载源列表在卡内滚动，避免右侧大块空白 */
+#cfg-download, #cfg-sources { align-self: stretch; display: flex; flex-direction: column; }
+#cfg-sources .src-list { flex: 0 1 auto; max-height: 360px; overflow-y: auto; padding-right: .15rem; }
+#cfg-sources .src-foot { margin-top: auto; padding-top: .8rem; }
+#cfg-sources .src-empty { flex: 1 1 auto; justify-content: center; }
+#cfg-sources .src-tabs { max-width: none; }
+#cfg-sources .src-item { grid-template-columns: auto minmax(0, 1fr) auto; }
+@media (max-width: 1199px) {
+    #cfg-sources .src-list { max-height: none; overflow: visible; }
+}
+
+/* 配置页双列摆位：左列「下载 / 保存位置」，右列「下载源 / 标签与歌词 + 歌单监控」，避免下半部分一侧留白 */
+@media (min-width: 1200px) {
+    .config-grid { grid-template-areas: "dl src" "loc meta" "loc mon" "notify notify" "actions actions"; grid-auto-rows: auto; }
+    #cfg-download { grid-area: dl; }
+    #cfg-sources { grid-area: src; }
+    #cfg-location { grid-area: loc; align-self: stretch; display: flex; flex-direction: column; }
+    #cfg-location > .cfg-sub { flex: 1 1 auto; display: flex; flex-direction: column; margin-bottom: .6rem; }
+    #cfg-location > .cfg-sub > :last-child { flex: 1 1 auto; }
+    #cfg-meta { grid-area: meta; }
+    #cfg-monitor { grid-area: mon; }
+    #cfg-notify { grid-area: notify; }
+    .config-grid > .config-actions { grid-area: actions; }
 }

@@ -377,6 +377,31 @@
                         <div><h3>下载</h3><p>并发、音质与限额处理</p></div>
                         <span class="scope-tag both">两个平台</span>
                     </div>
+                    <div class="cfg-row cfg-row-stack">
+                        <div class="cfg-label">
+                            <span>下载渠道</span>
+                            <small>从哪里获取歌曲下载链接，两个平台都按这个设置</small>
+                        </div>
+                        <div class="channel-pick" role="radiogroup" aria-label="下载渠道">
+                            <label class="channel-opt">
+                                <input type="radio" name="download.channel" value="both">
+                                <span class="ch-ico"><i class="bi bi-arrow-left-right"></i></span>
+                                <span class="ch-text"><b>两者都用</b><small>先用官方账号下载，取不到时回退下载源</small></span>
+                                <span class="ch-tag">推荐</span>
+                            </label>
+                            <label class="channel-opt">
+                                <input type="radio" name="download.channel" value="official">
+                                <span class="ch-ico"><i class="bi bi-person-check"></i></span>
+                                <span class="ch-text"><b>只用官方</b><small>只走 QQ 音乐 / 网易云账号，不使用下载源</small></span>
+                            </label>
+                            <label class="channel-opt">
+                                <input type="radio" name="download.channel" value="source">
+                                <span class="ch-ico"><i class="bi bi-plug"></i></span>
+                                <span class="ch-text"><b>只用下载源</b><small>不占账号下载额度，无需登录也能下载单曲</small></span>
+                            </label>
+                        </div>
+                        <div class="channel-note" id="channel-note"></div>
+                    </div>
                     <div class="cfg-row">
                         <div class="cfg-label"><label for="max-concurrent">最大并发下载数</label><small>QQ 音乐与网易云各自按这个数量并行下载</small></div>
                         <input type="number" class="form-control cfg-num" id="max-concurrent" min="1" max="20" name="download.max_concurrent">
@@ -405,10 +430,10 @@
                 </section>
 
                 <!-- 下载源（洛雪格式自定义源） -->
-                <section class="cfg-card cfg-wide" id="cfg-sources">
+                <section class="cfg-card" id="cfg-sources">
                     <div class="cfg-card-head">
                         <span class="cfg-ico"><i class="bi bi-plug"></i></span>
-                        <div><h3>下载源</h3><p>兼容洛雪音乐（LX Music）自定义源脚本。下载时按列表顺序优先使用这些源取链接，都取不到时自动回退到账号官方渠道</p></div>
+                        <div><h3>下载源</h3><p>兼容洛雪音乐（LX Music）自定义源脚本，按列表顺序取链接。是否使用、与官方的先后顺序由「下载 → 下载渠道」决定</p></div>
                         <span class="scope-tag both">两个平台</span>
                     </div>
                     <div id="sources-unavailable" class="src-alert" hidden>
@@ -441,7 +466,7 @@
                     <div class="src-list" id="src-list">
                         <div class="src-empty"><i class="bi bi-plug"></i><div>还没有添加下载源</div><small>未添加时，下载全部走账号官方渠道（与之前一致）</small></div>
                     </div>
-                    <div class="src-foot"><i class="bi bi-info-circle"></i> 列表越靠上越优先；每个源按「Hi-Res → 无损 → 320k → 128k」依次尝试它支持的音质。源脚本来自第三方，请只添加你信任的源。</div>
+                    <div class="src-foot"><i class="bi bi-info-circle"></i> 越靠上越优先；每个源按 Hi-Res → 无损 → 320k → 128k 尝试它支持的音质。源脚本来自第三方，请只添加信任的源。可用源推荐见 <a href="https://github.com/yiyu12138/Music-monitor#-下载源" target="_blank" rel="noopener">README</a>。</div>
                 </section>
 
                 <!-- 保存位置 -->

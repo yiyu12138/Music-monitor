@@ -15,7 +15,30 @@
     }
     const json = (method, body) => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
 
+    let lastList = [];
+
+    function updateChannelNote() {
+        const note = $('#channel-note');
+        if (!note) return;
+        const picked = document.querySelector('input[name="download.channel"]:checked');
+        const ch = picked ? picked.value : 'both';
+        const usable = lastList.filter(s => s.enabled && s.loaded && (s.platforms || []).some(p => HIT.has(p.key)));
+        note.classList.remove('warn');
+        if (ch === 'official') {
+            note.textContent = '';
+        } else if (!usable.length) {
+            note.classList.add('warn');
+            note.innerHTML = ch === 'source'
+                ? '<i class="bi bi-exclamation-triangle"></i> 还没有可用的下载源，选「只用下载源」将无法下载。请先在右侧「下载源」添加。'
+                : '<i class="bi bi-info-circle"></i> 还没有可用的下载源，目前实际只会走官方渠道。';
+        } else {
+            note.innerHTML = '<i class="bi bi-check2-circle"></i> 可用下载源 ' + usable.length + ' 个：' + usable.map(s => esc(s.name)).join('、');
+        }
+    }
+
     function render(list) {
+        lastList = list || [];
+        updateChannelNote();
         const box = $('#src-list');
         if (!box) return;
         if (!list.length) {
@@ -140,9 +163,12 @@
         });
     }
 
-    function init() { bind(); load(); }
+    function init() {
+        bind(); load();
+        document.querySelectorAll('input[name="download.channel"]').forEach(r => r.addEventListener('change', updateChannelNote));
+    }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
     // 切到配置页时刷新一次状态
     window.addEventListener('hashchange', () => { if (location.hash === '#config') load(); });
-    window.MusicSources = { reload: load };
+    window.MusicSources = { reload: load, updateChannelNote };
 })();

@@ -5,7 +5,7 @@ from typing import Dict, Any
 CONFIG_FILE = os.path.join("data", "config.json")
 
 # 应用版本与项目主页（配置页展示用；升级版本只改这里）
-APP_VERSION = "1.3.1"
+APP_VERSION = "1.3.2"
 GITHUB_URL = "https://github.com/yiyu12138/Music-monitor"
 
 # 默认配置
@@ -17,6 +17,9 @@ DEFAULT_CONFIG = {
     "download": {
         "max_concurrent": 3,
         "retry_interval_seconds": 24 * 3600,
+        # 下载渠道：official=只用账号官方渠道；source=只用下载源（洛雪自定义源）；
+        # both=先官方，取不到链接时回退下载源
+        "channel": "both",
         "default_dir": "/app/downloads/save",
         "downloads_root": "/app/downloads",
         # 歌单下载是否按歌单名建子文件夹；关掉则所有歌单都平铺保存到 downloads_root
