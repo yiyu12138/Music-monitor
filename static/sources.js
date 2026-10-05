@@ -80,7 +80,7 @@
                 const plats = (s.platforms || []).map(p => p.name).join('、') || '未声明';
                 alertMsg((data.message || '已添加') + '\n支持平台：' + plats);
             } catch (e) {
-                alertMsg('添加失败：' + e.message);
+                alertMsg(/^添加失败/.test(e.message) ? e.message : ('添加失败：' + e.message));
             }
         });
     }

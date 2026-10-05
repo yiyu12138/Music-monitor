@@ -58,6 +58,12 @@ MAX_SCRIPT_SIZE = 2 * 1024 * 1024
 _META_RE = re.compile(r"^\s*\*?\s*@(name|description|version|author|homepage)\s+(.+?)\s*$", re.M)
 
 
+def normalize_script(script: str) -> str:
+    """与洛雪客户端一致：去 BOM、统一换行为 LF、去首尾空白（部分源会对自身内容做 md5 校验）"""
+    s = (script or "").lstrip("\ufeff")
+    return s.replace("\r\n", "\n").replace("\r", "\n").strip()
+
+
 def parse_meta(script: str) -> Dict[str, str]:
     head = script[:4096]
     m = re.search(r"/\*[\s\S]*?\*/", head)
@@ -66,6 +72,43 @@ def parse_meta(script: str) -> Dict[str, str]:
         for k, v in _META_RE.findall(m.group(0)):
             meta.setdefault(k, v.strip()[:200])
     return meta
+
+
+# --------------------------------------------------------------------------- 网络
+
+def describe_error(e: BaseException) -> str:
+    """取异常链最底层的原因（httpx 的 ConnectError 等 str() 常常是空的）"""
+    root = e
+    seen = set()
+    while (root.__cause__ or root.__context__) and id(root) not in seen:
+        seen.add(id(root))
+        root = root.__cause__ or root.__context__
+    for x in (e, root):
+        msg = str(x).strip()
+        if msg:
+            return f"{type(x).__name__}: {msg}"[:300]
+    return type(root).__name__
+
+
+async def http_request(method: str, url: str, *, timeout: float = 20.0, **kw) -> httpx.Response:
+    """发请求；连接/握手失败时改用 IPv4 再试一次。
+
+    有些网络能解析出 IPv6 地址但实际连不通（典型表现是 SSL: UNEXPECTED_EOF），
+    异步请求不会像 curl 那样自动回退 IPv4，这里手动兜底。
+    """
+    retryable = (httpx.ConnectError, httpx.ConnectTimeout, httpx.ReadError, httpx.RemoteProtocolError)
+    last: Optional[BaseException] = None
+    # 依次：默认 → 强制 IPv4 → 稍等后再强制 IPv4（应对 GitHub 等站点偶发的握手中断）
+    for attempt, ipv4 in enumerate((False, True, True)):
+        if attempt == 2:
+            await asyncio.sleep(1.0)
+        transport = httpx.AsyncHTTPTransport(local_address="0.0.0.0") if ipv4 else None
+        try:
+            async with httpx.AsyncClient(timeout=timeout, follow_redirects=True, transport=transport) as http:
+                return await http.request(method, url, **kw)
+        except retryable as e:
+            last = e
+    raise last  # type: ignore[misc]
 
 
 # --------------------------------------------------------------------------- JS 预置环境
@@ -81,8 +124,12 @@ _PRELUDE = r"""
     info: function(){ __host_log('info', Array.prototype.map.call(arguments, S).join(' ')); },
     warn: function(){ __host_log('warn', Array.prototype.map.call(arguments, S).join(' ')); },
     error: function(){ __host_log('error', Array.prototype.map.call(arguments, S).join(' ')); },
-    debug: function(){}
+    debug: function(){ __host_log('debug', Array.prototype.map.call(arguments, S).join(' ')); }
   };
+  // 洛雪源常用但我们不需要真正实现的 console 方法：一律当作普通日志或空操作，避免 "not a function"
+  ['group', 'groupCollapsed', 'trace', 'dir', 'dirxml', 'table'].forEach(function(k){ g.console[k] = g.console.log; });
+  ['groupEnd', 'time', 'timeEnd', 'timeLog', 'count', 'countReset', 'clear', 'profile', 'profileEnd'].forEach(function(k){ g.console[k] = function(){}; });
+  g.console.assert = function(c){ if (!c) g.console.error.apply(null, Array.prototype.slice.call(arguments, 1)); };
   g.setTimeout = function(fn, ms){ var id = nid(); g.__lx.timers[id] = fn; __host_timer(id, Number(ms) || 0); return id; };
   g.clearTimeout = function(id){ delete g.__lx.timers[id]; };
   g.setInterval = function(){ return 0; };
@@ -144,7 +191,10 @@ _PRELUDE = r"""
   };
   g.__lx_call = function(reqId, payload){
     var h = g.__lx.handlers['request'];
-    var done = function(ok, v){ __host_result(reqId, ok ? 'ok' : 'err', S(ok ? v : (v && v.message ? v.message : v))); };
+    var done = function(ok, v){
+      if (!ok) { var m = v && v.message ? v.message : S(v); if (!m || m === '{}' || m === 'undefined') m = '源返回错误（无具体原因）'; __host_result(reqId, 'err', m); return; }
+      __host_result(reqId, 'ok', S(v));
+    };
     if (typeof h !== 'function') { done(false, '该源未注册 request 处理函数'); return; }
     try {
       var r = h(payload);
@@ -335,8 +385,7 @@ class LxRuntime:
                     kw["json"] = b
                 else:
                     kw["content"] = str(b).encode()
-            async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as http:
-                r = await http.request(method, url, headers=headers, **kw)
+            r = await http_request(method, url, timeout=timeout, headers=headers, **kw)
             text = r.text
             try:
                 body = json.loads(text)
@@ -345,7 +394,7 @@ class LxRuntime:
             resp = {"statusCode": r.status_code, "statusMessage": r.reason_phrase,
                     "headers": dict(r.headers), "body": body, "raw": None}
         except Exception as e:
-            err = f"请求失败: {e}"[:300]
+            err = f"请求失败: {describe_error(e)}"[:300]
         await self._js(self._dispatch, cid, err, resp, body)
 
     def _dispatch(self, cid, err, resp, body):
@@ -372,7 +421,7 @@ class LxRuntime:
         self._eval("globalThis.__lx_script_info = %s;" % json.dumps({
             "name": self.info.get("name", ""), "description": self.info.get("description", ""),
             "version": self.info.get("version", ""), "author": self.info.get("author", ""),
-            "homepage": self.info.get("homepage", ""), "rawScript": "",
+            "homepage": self.info.get("homepage", ""), "rawScript": self.script,
         }, ensure_ascii=False))
         self._eval(_PRELUDE)
         self._eval(self.script)
@@ -390,7 +439,7 @@ class LxRuntime:
             self.error = "脚本初始化超时（没有调用 lx.send('inited')）"
             return False
         except Exception as e:
-            self.error = f"脚本加载失败: {e}"[:300]
+            self.error = f"脚本加载失败: {describe_error(e)}"[:300]
             return False
         self.error = None
         return True
@@ -408,8 +457,24 @@ class LxRuntime:
         rid = secrets.token_hex(6)
         fut = self._loop.create_future()
         self._results[rid] = fut
+        mi = dict(music_info or {})
+        mi["source"] = platform
+        mi.setdefault("songmid", "")
+        mi.setdefault("id", mi["songmid"])
+        mi.setdefault("name", "")
+        mi.setdefault("singer", "")
+        mi.setdefault("albumName", "")
+        mi.setdefault("albumId", "")
+        mi.setdefault("interval", "")
+        mi.setdefault("img", "")
+        mi.setdefault("types", [])
+        mi.setdefault("_types", {})
+        mi.setdefault("typeUrl", {})
+        if platform == "tx":
+            mi.setdefault("strMediaMid", mi["songmid"])
+            mi.setdefault("albumMid", "")
         payload = {"source": platform, "action": "musicUrl",
-                   "info": {"type": quality, "musicInfo": music_info}}
+                   "info": {"type": quality, "musicInfo": mi}}
         try:
             await self._js(lambda: self._eval("__lx_call(%s, %s)" % (
                 json.dumps(rid), json.dumps(payload, ensure_ascii=False))))
@@ -477,8 +542,8 @@ class SourceManager:
     async def _load_runtime(self, item: Dict[str, Any]) -> Optional[LxRuntime]:
         self._rt.pop(item["id"], None)
         try:
-            with open(self._script_path(item["id"]), "r", encoding="utf-8") as f:
-                script = f.read()
+            with open(self._script_path(item["id"]), "r", encoding="utf-8", newline="") as f:
+                script = normalize_script(f.read())
         except Exception as e:
             item["error"] = f"脚本文件丢失: {e}"
             return None
@@ -492,13 +557,15 @@ class SourceManager:
 
     # ---- 增删改
     async def add(self, script: str, url: str = "") -> Dict[str, Any]:
-        script = (script or "").strip()
+        script = normalize_script(script)
         if not script:
             raise ValueError("脚本内容为空")
         if len(script.encode("utf-8")) > MAX_SCRIPT_SIZE:
             raise ValueError("脚本太大（超过 2MB）")
-        if "lx.on" not in script and "EVENT_NAMES" not in script and "lx.send" not in script:
-            raise ValueError("不像是洛雪音乐(LX Music)的自定义源脚本")
+        # 只拦明显不是 JS 的内容（例如把网页链接当成脚本链接）；
+        # 混淆过的源连 "lx" 字样都可能没有，是否合格以「能否完成 inited 初始化」为准
+        if re.match(r"^\s*(<!doctype|<html|<\?xml|<head|<body)", script, re.I):
+            raise ValueError("这是网页内容，不是脚本。链接导入请使用脚本的原始链接（raw，以 .js 结尾）")
         if not self.available:
             raise ValueError("缺少 JS 引擎（quickjs），无法加载自定义源")
         meta = parse_meta(script)
@@ -507,7 +574,7 @@ class SourceManager:
             if self._find(sid):
                 raise ValueError("这个源已经添加过了")
             os.makedirs(SOURCES_DIR, exist_ok=True)
-            with open(self._script_path(sid), "w", encoding="utf-8") as f:
+            with open(self._script_path(sid), "w", encoding="utf-8", newline="\n") as f:
                 f.write(script)
             item = {
                 "id": sid,
@@ -537,8 +604,10 @@ class SourceManager:
         url = (url or "").strip()
         if not re.match(r"^https?://", url, re.I):
             raise ValueError("请填写 http(s) 开头的脚本链接")
-        async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as http:
-            r = await http.get(url, headers={"User-Agent": "lx-music-desktop/2.0.0"})
+        try:
+            r = await http_request("GET", url, headers={"User-Agent": "lx-music-desktop/2.0.0"})
+        except Exception as e:
+            raise ValueError(f"下载脚本失败（{describe_error(e)}）。可以改用加速链接，或下载 .js 后用「本地文件」导入")
         if r.status_code != 200:
             raise ValueError(f"下载脚本失败：HTTP {r.status_code}")
         return await self.add(r.text, url=url)
@@ -576,17 +645,17 @@ class SourceManager:
                 raise KeyError(sid)
             if item.get("url"):
                 try:
-                    async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as http:
-                        r = await http.get(item["url"], headers={"User-Agent": "lx-music-desktop/2.0.0"})
+                    r = await http_request("GET", item["url"], headers={"User-Agent": "lx-music-desktop/2.0.0"})
                     if r.status_code == 200 and r.text.strip():
-                        with open(self._script_path(sid), "w", encoding="utf-8") as f:
-                            f.write(r.text)
-                        meta = parse_meta(r.text)
+                        text = normalize_script(r.text)
+                        with open(self._script_path(sid), "w", encoding="utf-8", newline="\n") as f:
+                            f.write(text)
+                        meta = parse_meta(text)
                         for k in ("name", "description", "version", "author", "homepage"):
                             if meta.get(k):
                                 item[k] = meta[k]
                 except Exception as e:
-                    print(f"[下载源] 更新脚本失败（继续用本地副本）: {e}")
+                    print(f"[下载源] 更新脚本失败（继续用本地副本）: {describe_error(e)}")
             await self._load_runtime(item)
             self._save_index()
             return self.public(item)

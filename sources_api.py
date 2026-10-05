@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from lx_source import manager
+from lx_source import describe_error, manager
 
 router = APIRouter(prefix="/api/sources", tags=["sources"])
 
@@ -46,7 +46,7 @@ async def add_source(body: AddBody):
     except ValueError as e:
         raise HTTPException(400, str(e))
     except Exception as e:
-        raise HTTPException(400, f"添加失败: {e}")
+        raise HTTPException(400, f"添加失败: {describe_error(e)}")
     return {"message": f"已添加「{item['name']}」", "source": item}
 
 
@@ -107,5 +107,5 @@ async def test_source(sid: str, body: TestBody):
     try:
         r = await manager.test(sid, body.platform, info)
     except Exception as e:
-        raise HTTPException(400, f"测试失败: {e}")
+        raise HTTPException(400, f"测试失败: {describe_error(e)}")
     return {"message": f"成功获取 {r['quality']} 链接", **r}
