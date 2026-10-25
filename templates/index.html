@@ -361,6 +361,7 @@
                 </div>
                 <nav class="config-toc" aria-label="配置分区">
                     <a href="#cfg-download"><i class="bi bi-download"></i> 下载</a>
+                    <a href="#cfg-sources"><i class="bi bi-plug"></i> 下载源</a>
                     <a href="#cfg-location"><i class="bi bi-folder2-open"></i> 保存位置</a>
                     <a href="#cfg-meta"><i class="bi bi-tags"></i> 标签与歌词</a>
                     <a href="#cfg-monitor"><i class="bi bi-broadcast"></i> 歌单监控</a>
@@ -375,6 +376,31 @@
                         <span class="cfg-ico"><i class="bi bi-download"></i></span>
                         <div><h3>下载</h3><p>并发、音质与限额处理</p></div>
                         <span class="scope-tag both">两个平台</span>
+                    </div>
+                    <div class="cfg-row cfg-row-stack">
+                        <div class="cfg-label">
+                            <span>下载渠道</span>
+                            <small>从哪里获取歌曲下载链接，两个平台都按这个设置</small>
+                        </div>
+                        <div class="channel-pick" role="radiogroup" aria-label="下载渠道">
+                            <label class="channel-opt">
+                                <input type="radio" name="download.channel" value="both">
+                                <span class="ch-ico"><i class="bi bi-arrow-left-right"></i></span>
+                                <span class="ch-text"><b>两者都用</b><small>先用官方账号下载，取不到时回退下载源</small></span>
+                                <span class="ch-tag">推荐</span>
+                            </label>
+                            <label class="channel-opt">
+                                <input type="radio" name="download.channel" value="official">
+                                <span class="ch-ico"><i class="bi bi-person-check"></i></span>
+                                <span class="ch-text"><b>只用官方</b><small>只走 QQ 音乐 / 网易云账号，不使用下载源</small></span>
+                            </label>
+                            <label class="channel-opt">
+                                <input type="radio" name="download.channel" value="source">
+                                <span class="ch-ico"><i class="bi bi-plug"></i></span>
+                                <span class="ch-text"><b>只用下载源</b><small>不占账号下载额度，无需登录也能下载单曲</small></span>
+                            </label>
+                        </div>
+                        <div class="channel-note" id="channel-note"></div>
                     </div>
                     <div class="cfg-row">
                         <div class="cfg-label"><label for="max-concurrent">最大并发下载数</label><small>QQ 音乐与网易云各自按这个数量并行下载</small></div>
@@ -401,6 +427,46 @@
                         <div class="cfg-label"><label for="retry-interval">限额冷却后重试间隔（秒）</label><small>QQ 音乐账号每天约 190 首的下载限额用完后，等这么久再自动重试</small></div>
                         <input type="number" class="form-control cfg-num" id="retry-interval" min="60" name="download.retry_interval_seconds">
                     </div>
+                </section>
+
+                <!-- 下载源（洛雪格式自定义源） -->
+                <section class="cfg-card" id="cfg-sources">
+                    <div class="cfg-card-head">
+                        <span class="cfg-ico"><i class="bi bi-plug"></i></span>
+                        <div><h3>下载源</h3><p>兼容洛雪音乐（LX Music）自定义源脚本，按列表顺序取链接。是否使用、与官方的先后顺序由「下载 → 下载渠道」决定</p></div>
+                        <span class="scope-tag both">两个平台</span>
+                    </div>
+                    <div id="sources-unavailable" class="src-alert" hidden>
+                        <i class="bi bi-exclamation-triangle"></i> 当前运行环境缺少 JS 引擎（quickjs），自定义源不可用。请重新安装依赖或更新到最新版本。
+                    </div>
+                    <div class="src-add">
+                        <div class="seg-tabs src-tabs" id="src-add-tabs" role="tablist">
+                            <button type="button" class="active" data-mode="url" role="tab"><i class="bi bi-link-45deg"></i> 链接导入</button>
+                            <button type="button" data-mode="file" role="tab"><i class="bi bi-file-earmark-code"></i> 本地文件</button>
+                            <button type="button" data-mode="paste" role="tab"><i class="bi bi-clipboard"></i> 粘贴脚本</button>
+                        </div>
+                        <div class="src-pane" data-pane="url">
+                            <div class="input-group">
+                                <input type="url" class="form-control" id="src-url" placeholder="洛雪自定义源脚本链接，例如 https://…/xxx.js">
+                                <button class="btn btn-primary" type="button" id="src-add-url"><i class="bi bi-plus-lg"></i> 添加</button>
+                            </div>
+                        </div>
+                        <div class="src-pane" data-pane="file" hidden>
+                            <label class="src-drop" for="src-file">
+                                <i class="bi bi-cloud-arrow-up"></i>
+                                <span>点击选择或拖入 <code>.js</code> 源脚本文件</span>
+                                <input type="file" id="src-file" accept=".js,text/javascript,application/javascript" hidden>
+                            </label>
+                        </div>
+                        <div class="src-pane" data-pane="paste" hidden>
+                            <textarea class="form-control src-code" id="src-script" rows="6" spellcheck="false" placeholder="/**&#10; * @name 源名称&#10; * @version 1.0.0&#10; */&#10;lx.on(lx.EVENT_NAMES.request, …)"></textarea>
+                            <button class="btn btn-primary btn-sm mt-2" type="button" id="src-add-script"><i class="bi bi-plus-lg"></i> 添加</button>
+                        </div>
+                    </div>
+                    <div class="src-list" id="src-list">
+                        <div class="src-empty"><i class="bi bi-plug"></i><div>还没有添加下载源</div><small>未添加时，下载全部走账号官方渠道（与之前一致）</small></div>
+                    </div>
+                    <div class="src-foot"><i class="bi bi-info-circle"></i> 越靠上越优先；每个源按 Hi-Res → 无损 → 320k → 128k 尝试它支持的音质。源脚本来自第三方，请只添加信任的源。可用源推荐见 <a href="https://github.com/yiyu12138/Music-monitor#-下载源" target="_blank" rel="noopener">README</a>。</div>
                 </section>
 
                 <!-- 保存位置 -->
@@ -629,5 +695,6 @@
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js" defer></script>
 <script src="/static/script.js?v={{ current_timestamp }}"></script>
 <script src="/static/netease.js?v={{ current_timestamp }}"></script>
+    <script src="/static/sources.js?v={{ current_timestamp }}"></script>
 </body>
 </html>

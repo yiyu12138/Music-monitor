@@ -129,6 +129,39 @@ def _cleanup_old_files(
     return removed
 
 
+async def _resolve_by_sources(song_mid: str, song_name: str):
+    """用自定义下载源（洛雪格式）获取 QQ 音乐歌曲直链；没有可用源或全部失败返回 None"""
+    try:
+        from lx_source import manager as source_manager
+    except Exception:
+        return None
+    if not source_manager.list():
+        return None
+    title, _, singer = song_name.partition(" - ")
+    music_info = {
+        "songmid": song_mid,
+        "name": title.strip(),
+        "singer": singer.strip(),
+        "source": "tx",
+    }
+    try:
+        detail = await qq_music.get_song_by_mid(song_mid)
+        if detail:
+            music_info.update({
+                "name": detail.get("name") or music_info["name"],
+                "singer": "、".join(detail.get("singer") or []) or music_info["singer"],
+                "albumName": detail.get("album", ""),
+                "img": detail.get("cover_url", ""),
+            })
+    except Exception:
+        pass
+    try:
+        return await source_manager.resolve("qq", music_info)
+    except Exception as e:
+        print(f"[下载源] 解析失败，回退官方渠道: {e}")
+        return None
+
+
 async def _execute_download(
     song_mid: str,
     song_name: str,
@@ -181,26 +214,50 @@ async def _execute_download(
             await _save_download_tasks()
             return
 
-    # 2) 确实需要下载，再检查登录态
-    cred = qq_music.get_credential()
-    if not cred:
-        print("错误：无法执行下载，因为用户凭证未加载。")
-        download_tasks[song_mid].update({"status": "failed", "error": "用户未登录"})
+    # 2) 按「下载渠道」取下载链接：
+    #    official 只用账号官方；source 只用下载源；both 先官方，取不到再回退下载源
+    from lx_source import use_official, use_source, download_channel
+    os.makedirs(target_dir, exist_ok=True)
+    url_info = None
+    cred = None
+    cooldown_until = 0
+    official_error = ""
+
+    if use_official():
+        cred = qq_music.get_credential()
+        if cred:
+            # 从凭证中获取特定于该用户的冷却时间
+            cooldown_until = qq_music.get_cooldown_until(cred)
+            url_info = await qq_music.get_song_download_url(song_mid)
+            if not url_info:
+                official_error = "官方渠道未取到下载链接"
+        else:
+            official_error = "QQ 音乐未登录"
+        if not url_info and use_source():
+            print(f"[下载渠道] 官方渠道不可用（{official_error}），回退下载源: {song_name}")
+
+    if not url_info and use_source():
+        url_info = await _resolve_by_sources(song_mid, song_name)
+
+    if not url_info and not (use_official() and cred):
+        # 官方没登录/没开，下载源也没取到 —— 直接给出明确原因
+        channel = download_channel()
+        if channel == "source":
+            reason = "下载源未取到链接（当前设置为只用下载源）"
+        elif channel == "official":
+            reason = "QQ 音乐未登录（当前设置为只用官方渠道）"
+        else:
+            reason = "QQ 音乐未登录，且下载源未取到链接"
+        print(f"错误：无法下载 {song_name}: {reason}")
+        download_tasks[song_mid].update({"status": "failed", "error": reason})
         await _save_download_tasks()
         from notification import notification_manager
-        await notification_manager.send_download_failed_notification(song_name, "用户未登录")
+        await notification_manager.send_download_failed_notification(song_name, reason)
         return
 
-    # 从凭证中获取特定于该用户的冷却时间
-    cooldown_until = qq_music.get_cooldown_until(cred)
-    os.makedirs(target_dir, exist_ok=True)
-
-    # 关键改动：总是先尝试获取下载链接
-    url_info = await qq_music.get_song_download_url(song_mid)
-
     if url_info and url_info.get("url"):
-        # 如果成功获取链接，说明限制已解除
-        if cooldown_until > 0:
+        # 如果官方渠道成功获取链接，说明限制已解除
+        if cred and cooldown_until > 0:
             print("下载链接获取成功，重置该账号的API冷却计时器。")
             qq_music.set_cooldown_until(cred, 0)
         
@@ -344,7 +401,7 @@ async def _execute_download(
             from notification import notification_manager
             await notification_manager.send_login_expired_notification(login_msg)
 
-        # 否则假设是API限制
+        # 否则假设是API限制（若开启了回退，下载源此时也已经试过且失败）
         error_msg = "无法获取下载链接 (可能是API限制)"
 
         current_time = int(time.time())
@@ -359,7 +416,7 @@ async def _execute_download(
 
         download_tasks[song_mid].update({
             "status": "waiting_for_retry",
-            "error": "账号超出下载限制",
+            "error": "账号超出下载限制" + ("，下载源也未取到链接" if use_source() else ""),
             "retry_at": new_cooldown_until
         })
         

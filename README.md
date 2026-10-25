@@ -11,7 +11,7 @@
 [![Docker](https://img.shields.io/badge/Docker-支持-0db7ed?logo=docker&logoColor=white)](#方式二docker)
 [![Python](https://img.shields.io/badge/Python-3.12-3776ab?logo=python&logoColor=white)](requirements.txt)
 
-[功能](#-功能) · [预览](#-界面预览) · [安装](#-安装) · [使用](#-使用) · [常见问题](#-常见问题) · [更新记录](CHANGELOG.md)
+[功能](#-功能) · [预览](#-界面预览) · [安装](#-安装) · [下载源](#-下载源) · [使用](#-使用) · [常见问题](#-常见问题) · [更新记录](CHANGELOG.md)
 
 </div>
 
@@ -30,6 +30,7 @@
 | 自动最高音质 | 母带 → 全景声 → FLAC → … | 超清母带 → Hi-Res → 无损 → … |
 | 标签 · 封面 · 歌词 · .lrc | ✅ | ✅ |
 
+- **自定义下载源**：兼容洛雪音乐（LX Music）自定义源脚本，支持链接 / 文件 / 粘贴导入；可选只用官方、只用下载源，或先官方再回退下载源
 - **一份配置管两个平台**：并发数、检查间隔、保存位置、标签歌词、通知都在同一个配置页，保存后立即生效，无需重启
 - **不重复下载**：按目标目录里的实际文件判断「本地已存在」，命中即跳过，也可以一键覆盖重下
 - **任务管理**：排队 / 下载中的任务可取消，失败可重试；QQ 每日限额用完后自动冷却重试
@@ -98,12 +99,46 @@ docker run -d --name music --restart unless-stopped \
 > [!WARNING]
 > `data/` 里是两个平台的登录凭证（`qq_cookie.json`、`ncm_cookie.json`），请勿分享或提交到代码库。
 
+## 🔌 下载源
+
+「配置 → 下载源」可以导入洛雪音乐（LX Music）格式的自定义源。社区整理的源可以在 **[pdone/lx-music-source](https://github.com/pdone/lx-music-source)** 找到：复制下面的链接，在「链接导入」里粘贴并点「添加」即可。
+
+| 源 | QQ 音乐 | 网易云 | 导入链接 |
+|---|:---:|:---:|---|
+| 全豆要（聚合音源） | ✅ | ✅ | `https://raw.githubusercontent.com/pdone/lx-music-source/main/qdy/latest.js` |
+| 长青 SVIP 音源 | ✅ | ✅ | `https://raw.githubusercontent.com/pdone/lx-music-source/main/changqing/latest.js` |
+| 幻音音源 | ✅ | ✅ | `https://raw.githubusercontent.com/pdone/lx-music-source/main/huanyin/latest.js` |
+| Huibq | ✅ | ✅ | `https://raw.githubusercontent.com/pdone/lx-music-source/main/huibq/latest.js` |
+| 聚合 API 接口 | ✅ | ❌ | `https://raw.githubusercontent.com/pdone/lx-music-source/main/juhe/latest.js` |
+
+> 上表是 2026-10-05 在本项目里实测的结果（能否加载、能否取到 320k 链接）。源随时可能失效或恢复，请以实际为准；建议添加 2～3 个作为备份，越靠上越优先。
+
+<details>
+<summary>该仓库里其它源的情况</summary>
+
+| 源 | 结果 |
+|---|---|
+| 六音（sixyin） | 能加载，但取不到链接，且不提供网易云 |
+| 野花（flower） | 能加载，取链时源服务器返回错误 |
+| ikun | 不提供 QQ 音乐；网易云接口的域名当前无法解析 |
+| 独家音源（lx） | 源服务器握手失败，无法使用 |
+| 野草（grass） | 只提供酷我音乐，本项目用不上 |
+
+</details>
+
+- 访问 `raw.githubusercontent.com` 不稳定时，可以在链接前加加速前缀，例如 `https://ghproxy.net/` + 原链接；也可以把 `.js` 下载下来，用「本地文件」导入
+- 「配置 → 下载 → **下载渠道**」决定怎么用：**两者都用**（默认，先官方账号，取不到再回退下载源）、**只用官方**、**只用下载源**
+- 使用下载源时按列表顺序尝试已启用的源，每个源按 Hi-Res → 无损 → 320k → 128k 依次尝试。一个源都不加，行为与以前完全一样
+- 选「只用下载源」或「两者都用」且有可用下载源时，不登录也能下载单曲（浏览歌单仍需登录）
+- 源脚本来自第三方，会向第三方服务器发起请求，请只添加你信任的源。本项目不内置、不分发任何源脚本
+
 ## 📖 使用
 
 1. 左侧（手机端在底部）切换 **QQ 音乐** / **网易云音乐**，未登录时页面中央就是登录卡片，扫码即可
 2. 点开歌单查看歌曲：试听、单曲下载，或「全部下载」（本地已有的会自动跳过）
 3. 点歌单旁的「监控」，之后这个歌单新增的歌会自动下载
 4. 两个平台的下载、保存位置、标签歌词、通知都在「配置」页；运行输出在「日志」页
+5. 想用第三方音源下载：见上面的 [🔌 下载源](#-下载源)
 
 **保存位置规则**：单曲 / 搜索下载放到「单曲下载目录」；歌单默认放到 `<下载根目录>/<歌单名>/`，关闭「歌单按歌单名建子文件夹」后全部平铺到下载根目录。每个监控歌单还可以单独指定目录、开启「按日期建文件夹」。
 
@@ -128,6 +163,15 @@ docker run -d --name music --restart unless-stopped \
 <summary><b>网易云提示「当前网络被风控」/ 返回 -462</b></summary>
 
 这是网易云对服务器 IP 的风控。程序会自动在网页 / PC 客户端 / 安卓客户端三套接口之间切换重试；仍被拦截时改用 **Cookie 登录**：浏览器登录 `music.163.com` → F12 → 应用（Application）→ Cookie → 复制 `MUSIC_U` 粘贴进来。
+
+</details>
+
+<details>
+<summary><b>下载源添加失败 / 显示「加载失败」</b></summary>
+
+- 提示「下载脚本失败」：NAS 访问 GitHub 不稳定，换成加速链接（`https://ghproxy.net/` + 原链接）重试，或下载 `.js` 后用「本地文件」导入
+- 提示「这是网页内容，不是脚本」：用的是 GitHub 的网页地址，要用 `raw.githubusercontent.com` 开头的原始链接
+- 加载成功但下载时取不到链接：源本身已失效，换一个源即可（参考上面的 [🔌 下载源](#-下载源) 表格）
 
 </details>
 
@@ -177,6 +221,7 @@ python -m uvicorn main:app --host 0.0.0.0 --port 6696
 | `netease_app.py` | 网易云业务：歌单、搜索、播放代理、下载队列、歌单监控（`/api/ncm/*`） |
 | `tasks.py` · `monitor.py` | QQ 音乐下载队列与歌单监控 |
 | `worker_pool.py` | 运行中可调整并发数的下载工作者池（两个平台共用） |
+| `lx_source.py` · `sources_api.py` | 下载源：洛雪自定义源脚本的运行时（内嵌 QuickJS）、源管理与 `/api/sources/*` 接口 |
 | `notification.py` | 企业微信 / Bark / Webhook 通知 |
 | `config.py` · `download_paths.py` · `local_files.py` | 配置、目录规则、本地文件检索 |
 | `tagging.py` | 标签、封面、歌词写入 |

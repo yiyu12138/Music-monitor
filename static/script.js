@@ -2137,10 +2137,16 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (field.type === 'checkbox') {
                 field.checked = Boolean(value);
+            } else if (field.type === 'radio') {
+                // 单选：没配置过时用默认值（下载渠道默认「两者都用」）
+                const v = (value === '' || value === undefined || value === null)
+                    ? (fieldName === 'download.channel' ? 'both' : '') : String(value);
+                field.checked = field.value === v;
             } else {
                 field.value = value || '';
             }
         });
+        if (window.MusicSources && window.MusicSources.updateChannelNote) window.MusicSources.updateChannelNote();
         
         // 更新动态字段显示
         toggleWebhookFields();

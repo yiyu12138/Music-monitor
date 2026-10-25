@@ -11,3 +11,6 @@ orjson>=3.11.9
 mutagen>=1.48.1
 # 网易云接口加密（weapi / eapi）
 cryptography>=42.0
+# 自定义下载源（洛雪格式 JS 脚本）的内嵌 JS 引擎
+quickjs>=1.19.4
+python-multipart>=0.0.9

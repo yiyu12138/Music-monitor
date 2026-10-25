@@ -70,7 +70,7 @@ chmod +x "${APP}"/cmd/*
 "${PY}" -c "
 import sys
 sys.path.insert(0, '${APP}/app/pylib')
-import fastapi, uvicorn, httpx, orjson, mutagen, cryptography, aiofiles, jinja2, qqmusic_api
+import fastapi, uvicorn, httpx, orjson, mutagen, cryptography, aiofiles, jinja2, qqmusic_api, quickjs, multipart
 print('依赖自检通过: fastapi', fastapi.__version__)
 "
 
