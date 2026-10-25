@@ -1,8 +1,8 @@
 services:
-  app:
+  music:
     build: .
-    image: music-monitor:1.2.2
-    container_name: Music-monitor
+    image: music:1.2.3
+    container_name: music
     ports:
       - "6696:6696"
     environment:

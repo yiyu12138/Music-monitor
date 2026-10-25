@@ -85,12 +85,12 @@ docker compose up -d --build
 <summary>不用 compose，直接 docker run</summary>
 
 ```bash
-docker build -t music-monitor .
-docker run -d --name Music-monitor --restart unless-stopped \
+docker build -t music .
+docker run -d --name music --restart unless-stopped \
   -p 6696:6696 -e TZ=Asia/Shanghai \
   -v $(pwd)/data:/app/data \
   -v $(pwd)/downloads:/app/downloads \
-  music-monitor
+  music
 ```
 
 </details>
@@ -148,7 +148,7 @@ QQ 单个账号每天约有 190 首的下载限额，用完后任务会进入冷
 <details>
 <summary><b>端口被占用 / 容器名冲突</b></summary>
 
-Docker 改端口映射即可（如 `"8669:6696"`）；同名容器先 `docker rm -f Music-monitor`。安装飞牛原生应用前，也请先停掉占用同一端口的容器。
+Docker 改端口映射即可（如 `"8669:6696"`）；同名容器先 `docker rm -f music`。安装飞牛原生应用前，也请先停掉占用同一端口的容器。
 
 </details>
 
