@@ -130,7 +130,10 @@
             } else if (d.code === 8821 || d.code === -462) {
                 stopQr();
                 box.classList.add('expired');
-                $('#ncm-qr-msg').innerHTML = '当前网络被网易云风控（' + esc(d.message || '需要安全验证') + '）<br>建议改用 <a href="#" data-goto="cookie">Cookie 登录</a>，或稍后 <a href="#" id="ncm-qr-again">重试</a>';
+                const verify = d.verify_url
+                    ? '<br><a href="' + esc(d.verify_url) + '" target="_blank" rel="noopener">👉 先完成网易云安全验证</a>'
+                    : '';
+                $('#ncm-qr-msg').innerHTML = '当前网络被网易云风控（' + esc(d.message || '需要安全验证') + '）' + verify + '<br>建议改用 <a href="#" data-goto="cookie">Cookie 登录</a>，或稍后 <a href="#" id="ncm-qr-again">重试</a>';
                 const again = $('#ncm-qr-again');
                 if (again) again.onclick = (ev) => { ev.preventDefault(); startQr(); };
             }
@@ -138,9 +141,10 @@
     }
 
     function riskHint(d) {
-        return (d && d.status === 'risk')
-            ? '\n\n网易云对当前网络环境触发了安全验证。可以稍等几分钟再试，或者切到「Cookie」方式登录（100% 可用）。'
-            : '';
+        if (!d || d.status !== 'risk') return '';
+        let s = '\n\n网易云对当前网络环境触发了安全验证。可以稍等几分钟再试，或者切到「Cookie」方式登录（100% 可用）。';
+        if (d.verify_url) s += '\n\n验证链接（复制到浏览器打开）：\n' + d.verify_url;
+        return s;
     }
 
     async function sendSms() {

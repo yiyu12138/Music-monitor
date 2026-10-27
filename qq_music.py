@@ -1,5 +1,6 @@
 import asyncio
 import os
+import re
 from typing import Optional
 
 from qqmusic_api import Client
@@ -25,6 +26,23 @@ global_client: Optional[Client] = None
 # 二维码登录会话，用于轮询扫码状态
 login_session: Optional[QRCodeLoginSession] = None
 auth_completed = asyncio.Event()
+
+# 登录专用 Client（不带旧凭证），见 get_login_client()
+_login_client: Optional[Client] = None
+
+
+def get_login_client() -> Client:
+    """登录专用客户端：不带任何旧凭证
+
+    登录接口会把 Client 的凭证拼进 comm（qq / authst）。如果本地还留着上一次
+    登录的 qq_cookie.json，手机号 / 二维码登录请求就会带着旧账号的身份信息，
+    QQ 侧很容易直接判失败（尤其是换号登录）。所以登录流程单独用一个空凭证的 Client，
+    设备指纹仍然复用同一个 device.json。
+    """
+    global _login_client
+    if _login_client is None:
+        _login_client = Client(credential=None, device_path=DEVICE_FILE_PATH)
+    return _login_client
 
 # 从 utils 复用 API 冷却时间存取（新版 Credential 为冻结 pydantic 模型，无法动态附加属性）
 from utils import get_cooldown_until, set_cooldown_until  # noqa: E402
@@ -53,11 +71,14 @@ def initialize_qqmusic_session(cred=None):
 
 
 async def close_qqmusic_session():
-    """关闭全局客户端"""
-    global global_client
+    """关闭全局客户端与登录专用客户端"""
+    global global_client, _login_client
     if global_client:
         await global_client.close()
         global_client = None
+    if _login_client:
+        await _login_client.close()
+        _login_client = None
 
 
 # --- 音质配置 ---
@@ -158,12 +179,13 @@ async def get_login_qrcode(login_type: str = "QQ"):
     """
     global login_session, _qr_unknown_streak
     _qr_unknown_streak = 0
-    initialize_qqmusic_session()  # 确保客户端存在
+    # 用不带旧凭证的客户端，避免旧账号的 qq/authst 混进登录请求
+    login_client = get_login_client()
 
     login_type_enum = QRLoginType.QQ if login_type == "QQ" else QRLoginType.WX
     # 每个请求创建一个新的登录会话（保持短超时，前端自行轮询状态）
     login_session = QRCodeLoginSession(
-        global_client.login,
+        login_client.login,
         login_type_enum,
         interval=1.5,
         timeout_seconds=180.0,
@@ -183,7 +205,7 @@ async def check_login_status():
         if qr is None:
             return {"status": "error", "message": "请先获取二维码"}
 
-        result = await global_client.login.check_qrcode(qr)
+        result = await login_session.api.check_qrcode(qr)
         event = result.event
 
         _qr_unknown_streak = 0
@@ -224,6 +246,30 @@ async def check_login_status():
 
 # --- 手机号登录相关函数 ---
 
+def _normalize_phone(phone):
+    """把纯数字手机号转成 int
+
+    qqmusic-api 的 send_authcode / phone_authorize 用 isinstance(phone, str)
+    区分「加密手机号」和「明文手机号」：传字符串会被当成 encryptedPhoneNo，
+    明文号码必须传 int 才会走 phoneNo 分支。FastAPI 的查询参数永远是 str，
+    所以这里必须先转一次，否则 QQ 侧直接返回「发送验证码失败」。
+    """
+    if isinstance(phone, str):
+        digits = re.sub(r"[\s\-]", "", phone)
+        if digits.isdigit():
+            return int(digits)
+    return phone
+
+
+def _login_error_text(e: Exception) -> str:
+    """把库异常转成带错误码的提示，方便排查风控/频率限制"""
+    code = getattr(e, "code", None)
+    text = str(e) or e.__class__.__name__
+    if code not in (None, "", 0):
+        text = f"{text}（code={code}）"
+    return text
+
+
 async def send_sms_code(phone: str, captcha_code: str = None, country_code: int = 86):
     """发送验证码到手机
 
@@ -236,8 +282,10 @@ async def send_sms_code(phone: str, captcha_code: str = None, country_code: int 
         dict: 发送结果
     """
     try:
-        initialize_qqmusic_session()
-        phone_session = PhoneLoginSession(global_client.login, phone, country_code)
+        phone = _normalize_phone(phone)
+        # 登录请求不能带旧凭证：否则 comm 里会塞进上一次登录的 qq/authst
+        login_client = get_login_client()
+        phone_session = PhoneLoginSession(login_client.login, phone, country_code)
         result = await phone_session.send_authcode()
         if result.event == PhoneLoginEvents.SEND:
             return {"status": "success", "message": "验证码发送成功"}
@@ -248,8 +296,9 @@ async def send_sms_code(phone: str, captcha_code: str = None, country_code: int 
         else:
             return {"status": "error", "message": "验证码发送失败"}
     except Exception as e:
-        print(f"发送验证码失败: {e}")
-        return {"status": "error", "message": f"发送验证码失败: {str(e)}"}
+        detail = _login_error_text(e)
+        print(f"发送验证码失败: {detail}")
+        return {"status": "error", "message": f"发送验证码失败: {detail}"}
 
 
 async def phone_login(phone: str, auth_code: str, country_code: int = 86):
@@ -264,8 +313,10 @@ async def phone_login(phone: str, auth_code: str, country_code: int = 86):
         dict: 登录结果
     """
     try:
-        initialize_qqmusic_session()
-        phone_session = PhoneLoginSession(global_client.login, phone, country_code)
+        phone = _normalize_phone(phone)
+        # 登录请求不能带旧凭证：否则 comm 里会塞进上一次登录的 qq/authst
+        login_client = get_login_client()
+        phone_session = PhoneLoginSession(login_client.login, phone, country_code)
         cred = await phone_session.authorize(auth_code)
 
         if not cred:
@@ -277,8 +328,9 @@ async def phone_login(phone: str, auth_code: str, country_code: int = 86):
         print("手机号登录成功，凭证已保存。")
         return {"status": "success", "message": "登录成功"}
     except Exception as e:
-        print(f"手机号登录失败: {e}")
-        return {"status": "error", "message": f"登录失败: {str(e)}"}
+        detail = _login_error_text(e)
+        print(f"手机号登录失败: {detail}")
+        return {"status": "error", "message": f"登录失败: {detail}"}
 
 
 async def get_user_playlists(user_id: int):

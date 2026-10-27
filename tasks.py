@@ -21,6 +21,24 @@ from config import config
 from worker_pool import WorkerPool
 
 
+class UserCancelled(Exception):
+    """用户主动取消下载
+
+    不能复用 asyncio.CancelledError：那是"任务被取消"的信号，被业务代码吞掉后
+    WorkerPool.stop() 的 gather 会永远等不到 worker 退出。用户取消是普通业务事件，
+    用独立异常区分开。
+    """
+
+
+def _remove_quiet(path: str):
+    """删除临时/半成品文件，失败只记日志不抛异常"""
+    try:
+        if path and os.path.exists(path):
+            os.remove(path)
+    except OSError as e:
+        print(f"删除文件失败 {path}: {e}")
+
+
 def retry_interval_seconds() -> int:
     """限额冷却后的重试间隔（每次实时读取配置，修改后立即生效）"""
     try:
@@ -69,15 +87,31 @@ async def load_download_tasks():
         print(f"加载下载任务失败: {e}")
         download_tasks.clear()
 
+# 保存锁：批量入队与下载完成可能同时触发保存，没有锁会互相截断文件
+_save_lock = asyncio.Lock()
+
+
 async def _save_download_tasks():
-    """将当前下载任务列表保存到文件"""
-    try:
-        # 使用 orjson 进行高效的 JSON 序列化
-        json_data = json.dumps(download_tasks, option=json.OPT_INDENT_2)
-        async with aiofiles.open(TASKS_FILE, "wb") as f:
-            await f.write(json_data)
-    except IOError as e:
-        print(f"错误：无法保存下载任务文件: {e}")
+    """将当前下载任务列表保存到文件（加锁 + 先写 .tmp 再原子替换）
+
+    直接 open(..., "wb") 会先把原文件截断，写到一半进程被杀就只剩半截 JSON，
+    下次启动只能清空全部历史。改成写临时文件再 os.replace，崩溃时旧文件仍然完整。
+    """
+    async with _save_lock:
+        tmp = TASKS_FILE + ".tmp"
+        try:
+            # 使用 orjson 进行高效的 JSON 序列化
+            json_data = json.dumps(download_tasks, option=json.OPT_INDENT_2)
+            async with aiofiles.open(tmp, "wb") as f:
+                await f.write(json_data)
+            os.replace(tmp, TASKS_FILE)
+        except (OSError, TypeError) as e:
+            print(f"错误：无法保存下载任务文件: {e}")
+            try:
+                if os.path.exists(tmp):
+                    os.remove(tmp)
+            except OSError:
+                pass
 
 def _file_url(file_path: str) -> str:
     """把本地文件路径转成 /downloads/... 静态访问地址（不在挂载目录内则返回空）"""
@@ -284,25 +318,32 @@ async def _execute_download(
         download_tasks[song_mid].update({"status": "downloading", "quality": quality})
         await _save_download_tasks()
 
+        # 先写 .part，全部收完再原子改名。
+        # 直接写最终文件名的话，中断会留下一个截断文件，下次扫描按文件名命中，
+        # 这首歌会被当成"本地已存在"永久跳过。
+        tmp_path = file_path + ".part"
+        _remove_quiet(tmp_path)
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(follow_redirects=True) as client:
                 async with client.stream("GET", url, timeout=300.0) as response:
                     response.raise_for_status()
                     total_size = int(response.headers.get("Content-Length", 0))
                     downloaded_size = 0
 
-                    async with aiofiles.open(file_path, "wb") as f:
+                    async with aiofiles.open(tmp_path, "wb") as f:
                         async for chunk in response.aiter_bytes():
                             # 支持取消：下载过程中检测到取消则中断
                             if download_tasks.get(song_mid, {}).get("status") == "cancelled":
                                 print(f"任务 {song_name} 已取消，中断下载。")
-                                raise asyncio.CancelledError("用户取消下载")
+                                raise UserCancelled()
                             await f.write(chunk)
                             downloaded_size += len(chunk)
                             if total_size > 0:
                                 progress = int((downloaded_size / total_size) * 100)
                                 if download_tasks[song_mid].get("progress") != progress:
                                     download_tasks[song_mid]["progress"] = progress
+
+            os.replace(tmp_path, file_path)
 
             file_size = 0
             try:
@@ -372,20 +413,23 @@ async def _execute_download(
             from notification import notification_manager
             await notification_manager.send_download_complete_notification(song_name, quality, file_size_str, display_dir)
         except httpx.HTTPStatusError as e:
+            _remove_quiet(tmp_path)
             error_message = f"HTTP 错误: {e.response.status_code} {e.response.reason_phrase}"
             download_tasks[song_mid].update({"status": "failed", "error": error_message})
             print(f"下载失败: {song_name}, 原因: {error_message}")
             from notification import notification_manager
             await notification_manager.send_download_failed_notification(song_name, error_message)
-        except asyncio.CancelledError:
+        except UserCancelled:
             # 用户取消下载：清理半成品文件，状态已在 cancel 接口置为 cancelled
-            try:
-                if os.path.exists(file_path):
-                    os.remove(file_path)
-                    print(f"已删除取消下载的半成品文件: {file_path}")
-            except OSError as e:
-                print(f"删除半成品文件失败: {e}")
+            _remove_quiet(tmp_path)
+            print(f"已删除取消下载的半成品文件: {tmp_path}")
+        except asyncio.CancelledError:
+            # 程序退出 / worker 被取消：清理半成品后必须继续向上抛，
+            # 否则 WorkerPool.stop() 的 gather 会一直等下去，优雅退出失效
+            _remove_quiet(tmp_path)
+            raise
         except Exception as e:
+            _remove_quiet(tmp_path)
             error_message = f"下载时发生未知错误: {e}"
             download_tasks[song_mid].update({"status": "failed", "error": error_message})
             print(f"下载失败: {song_name}, 原因: {e}")

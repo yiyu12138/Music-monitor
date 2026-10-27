@@ -5,7 +5,7 @@ from typing import Dict, Any
 CONFIG_FILE = os.path.join("data", "config.json")
 
 # 应用版本与项目主页（配置页展示用；升级版本只改这里）
-APP_VERSION = "1.3.2"
+APP_VERSION = "1.3.3"
 GITHUB_URL = "https://github.com/yiyu12138/Music-monitor"
 
 # 默认配置
@@ -152,12 +152,17 @@ class ConfigManager:
 
     @staticmethod
     def _normalize_types(value, default):
-        """递归把 value 中的值转换为 default 对应的类型（数字/布尔）"""
+        """递归把 value 中的值转换为 default 对应的类型（数字/布尔）
+
+        注意：只对 DEFAULT_CONFIG 里登记过的键做类型转换，其余键原样保留。
+        早先的实现只遍历 default 的键，导致 proxy.url、download.playlist_date_folder
+        这类没登记在默认配置里的字段在保存时被静默删掉。
+        """
         if isinstance(default, dict) and isinstance(value, dict):
-            return {
-                k: ConfigManager._normalize_types(value.get(k, dv), dv)
-                for k, dv in default.items()
-            }
+            result = dict(value)  # 先保留所有已有键（含未登记的）
+            for k, dv in default.items():
+                result[k] = ConfigManager._normalize_types(value.get(k, dv), dv)
+            return result
         if isinstance(default, bool):
             if isinstance(value, str):
                 return value.lower() in ("true", "1", "yes")
@@ -201,8 +206,10 @@ class ConfigManager:
         return self.save_config()
     
     def get_full_config(self) -> Dict[str, Any]:
-        """获取完整配置"""
-        return self._config.copy()
+        """获取完整配置（深拷贝，避免调用方改嵌套字典污染全局配置）"""
+        import copy as _copy
+
+        return _copy.deepcopy(self._config)
 
     def update_config(self, new_config: Dict[str, Any]) -> bool:
         """更新配置"""

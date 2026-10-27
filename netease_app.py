@@ -561,7 +561,8 @@ async def qr_check(key: str):
         return {"code": 803, "message": "登录成功" if acc else "已授权，但未能获取账号信息", "account": acc}
     msg = {800: "二维码已过期", 801: "等待扫码", 802: "已扫码，请在手机上确认"}.get(code) \
         or LOGIN_MESSAGES.get(code) or res.get("message", "")
-    return {"code": code, "message": msg, "nickname": res.get("nickname")}
+    return {"code": code, "message": msg, "nickname": res.get("nickname"),
+            "verify_url": _verify_url(res)}
 
 
 class SmsBody(BaseModel):
@@ -574,6 +575,12 @@ def _login_error(res: dict, fallback: str) -> str:
     return LOGIN_MESSAGES.get(code) or res.get("message") or res.get("msg") or f"{fallback}（code={code}）"
 
 
+def _verify_url(res: dict) -> str:
+    """风控响应里的行为验证地址（-462 / 8821 时网易云会返回）"""
+    data = res.get("data") or {}
+    return data.get("url") or data.get("verifyUrl") or ""
+
+
 @router.post("/login/sms")
 async def login_sms(body: SmsBody):
     phone = re.sub(r"\D", "", body.phone or "")
@@ -583,7 +590,8 @@ async def login_sms(body: SmsBody):
     if res.get("code") == 200:
         return {"status": "success", "message": "验证码已发送，请注意查收短信"}
     return {"status": "risk" if res.get("code") in RISK_CODES else "failed",
-            "code": res.get("code"), "message": _login_error(res, "发送验证码失败")}
+            "code": res.get("code"), "message": _login_error(res, "发送验证码失败"),
+            "verify_url": _verify_url(res)}
 
 
 class PhoneLoginBody(BaseModel):
@@ -608,7 +616,8 @@ async def login_phone(body: PhoneLoginBody):
             return {"status": "success", "account": acc, "message": f"登录成功，欢迎 {acc['nickname']}"}
         return {"status": "failed", "message": "登录接口返回成功，但未拿到有效登录态，请改用扫码或 Cookie 登录"}
     return {"status": "risk" if res.get("code") in RISK_CODES else "failed",
-            "code": res.get("code"), "message": _login_error(res, "登录失败")}
+            "code": res.get("code"), "message": _login_error(res, "登录失败"),
+            "verify_url": _verify_url(res)}
 
 
 class CookieBody(BaseModel):

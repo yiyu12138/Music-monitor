@@ -1,7 +1,7 @@
 services:
   music:
     build: .
-    image: music:1.3.2
+    image: music:1.3.3
     container_name: music
     ports:
       - "6696:6696"

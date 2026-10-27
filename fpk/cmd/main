@@ -10,6 +10,7 @@ PY="${FNOS_PYTHON:-/var/apps/python312/target/bin/python3}"
 PORT="${wizard_port:-6696}"
 TZ_VAL="${wizard_tz:-Asia/Shanghai}"
 DATA_DIR="${wizard_data_dir:-/var/apps/music-monitor/var/data}"
+MUSIC_DIR="${wizard_music_dir:-/vol1/1000/music}"
 RUN_DIR="${PKG_VAR}/run"
 PID_FILE="${PKG_VAR}/app.pid"
 LOG_FILE="${PKG_VAR}/app.log"
@@ -72,10 +73,16 @@ start_app() {
         fail "${msg}"
     fi
 
-    mkdir -p "${DATA_DIR}" "${RUN_DIR}/downloads" "${PKG_VAR}" 2>/dev/null || true
+    mkdir -p "${DATA_DIR}" "${RUN_DIR}" "${PKG_VAR}" 2>/dev/null || true
     # 应用以「当前目录/data」存放配置与登录态：把 data 软链到向导里的应用数据目录，
     # 这样用户选定的目录里直接就是 config.json、cookie、任务历史等文件
     ln -sfn "${DATA_DIR}" "${RUN_DIR}/data"
+    # 应用里的 DOWNLOADS_DIR 是相对路径 "downloads"，必须指向向导里的音乐目录，
+    # 否则 /downloads/... 静态播放地址、本地文件链接和索引扫描都会落在空目录上
+    if [ -L "${RUN_DIR}/downloads" ] || [ -d "${RUN_DIR}/downloads" ]; then
+        rm -rf "${RUN_DIR}/downloads"
+    fi
+    ln -sfn "${MUSIC_DIR}" "${RUN_DIR}/downloads"
     ln -sfn "${APP_DIR}/server/templates" "${RUN_DIR}/templates"
     ln -sfn "${APP_DIR}/server/static" "${RUN_DIR}/static"
 
@@ -85,7 +92,7 @@ start_app() {
         TZ="${TZ_VAL}" \
         PYTHONPATH="${APP_DIR}/server:${APP_DIR}/pylib" \
         PYTHONUNBUFFERED=1 \
-        nohup "${PY}" -m uvicorn main:app --host 0.0.0.0 --port "${PORT}" >>"${LOG_FILE}" 2>&1 &
+        nohup "${PY}" -m uvicorn main:app --host 0.0.0.0 --port "${PORT}" --no-access-log >>"${LOG_FILE}" 2>&1 &
         echo $! > "${PID_FILE}"
     )
 

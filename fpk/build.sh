@@ -74,6 +74,9 @@ import fastapi, uvicorn, httpx, orjson, mutagen, cryptography, aiofiles, jinja2,
 print('依赖自检通过: fastapi', fastapi.__version__)
 "
 
+# 自检会生成 __pycache__，打包前清掉，避免把 .pyc 带进安装包
+find "${APP}" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
+
 # 6) 打包
 if ! command -v fnpack >/dev/null 2>&1; then
     echo "未找到 fnpack（飞牛自带 /usr/local/bin/fnpack）" >&2
