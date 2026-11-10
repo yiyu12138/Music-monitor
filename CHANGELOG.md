@@ -1,6 +1,16 @@
 # 更新记录
 
-> 最新版本：**v1.3.4**。v0.9.3 及更早的版本记录来自上游项目 [huohen92/QQMusic-monitor](https://github.com/huohen92/QQMusic-monitor)。
+> 最新版本：**v1.3.5**。v0.9.3 及更早的版本记录来自上游项目 [huohen92/QQMusic-monitor](https://github.com/huohen92/QQMusic-monitor)。
+
+## v1.3.5
+
+> 新增 Telegram 机器人通知渠道。
+
+1. **配置 → 通知**里多一张「Telegram 机器人」卡片，和 Bark / 企业微信 / Webhook 并列
+2. 填 Bot Token（@BotFather 拿）和 chat_id（个人 ID 或 `@频道名`），打开开关保存即可，原有的下载完成、歌单更新、下载结果汇报、登录失效通知都会同时推到 TG
+3. **代理 / 反代**：国内直连 `api.telegram.org` 基本不通，可以填 HTTP 代理（如 `http://192.168.1.2:7890`），或把 API 地址换成自建反代
+4. 单条 4096 字符上限自动按行拆分并标注 `(1/N)`；用纯文本发送，歌名里的 `* _ [ ]` 不会触发 Markdown 解析错误
+5. 报错日志里的 Bot Token 会被替换成 `***`，不会漏进日志页
 
 ## v1.3.4
 

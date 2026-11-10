@@ -2152,6 +2152,7 @@ document.addEventListener('DOMContentLoaded', () => {
         toggleWebhookFields();
         toggleBarkFields();
         toggleWecomFields();
+        toggleTelegramFields();
         toggleLyricFields();
         updateSubfolderHint();
     }
@@ -2238,6 +2239,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function toggleWecomFields() {
         const enabled = document.getElementById('wecom-enabled').checked;
         const container = document.getElementById('wecom-config-container');
+        container.style.display = enabled ? 'block' : 'none';
+    }
+
+    function toggleTelegramFields() {
+        const enabled = document.getElementById('telegram-enabled').checked;
+        const container = document.getElementById('telegram-config-container');
         container.style.display = enabled ? 'block' : 'none';
     }
 

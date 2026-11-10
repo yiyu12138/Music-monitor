@@ -736,7 +736,7 @@ async def notification_test():
                if (notification_manager._config.get(f"notification.{k}") or {}).get("enabled")}
     if not enabled:
         return {"status": "none", "message": "没有启用任何通知渠道", "results": results}
-    names = {"webhook": "Webhook", "bark": "Bark", "wecom": "企业微信"}
+    names = {"webhook": "Webhook", "bark": "Bark", "wecom": "企业微信", "telegram": "Telegram"}
     ok = [names[k] for k, v in enabled.items() if v]
     bad = [names[k] for k, v in enabled.items() if not v]
     msg = ("发送成功：" + "、".join(ok)) if ok else ""

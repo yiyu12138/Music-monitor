@@ -578,6 +578,19 @@
                         </div>
                         <div class="notify-card">
                             <div class="notify-head">
+                                <span class="n-ico tg"><i class="bi bi-telegram"></i></span><strong>Telegram 机器人</strong>
+                                <div class="form-check form-switch m-0 ms-auto"><input class="form-check-input" type="checkbox" id="telegram-enabled" name="notification.telegram.enabled"></div>
+                            </div>
+                            <div id="telegram-config-container">
+                                <input type="text" class="form-control form-control-sm mb-2" id="telegram-bot-token" name="notification.telegram.bot_token" placeholder="Bot Token（@BotFather 那里拿）" autocomplete="off" spellcheck="false">
+                                <input type="text" class="form-control form-control-sm mb-2" id="telegram-chat-id" name="notification.telegram.chat_id" placeholder="chat_id（个人 ID 或 @频道名）" autocomplete="off" spellcheck="false">
+                                <input type="text" class="form-control form-control-sm mb-2" id="telegram-proxy" name="notification.telegram.proxy" placeholder="代理，可留空（如 http://192.168.1.2:7890）" autocomplete="off" spellcheck="false">
+                                <input type="url" class="form-control form-control-sm" id="telegram-api-base" name="notification.telegram.api_base" placeholder="API 地址，可留空（默认官方）" autocomplete="off" spellcheck="false">
+                                <div class="form-text">直连 api.telegram.org 不通时，填代理或自建反代地址。</div>
+                            </div>
+                        </div>
+                        <div class="notify-card">
+                            <div class="notify-head">
                                 <span class="n-ico hook"><i class="bi bi-link-45deg"></i></span><strong>Webhook</strong>
                                 <div class="form-check form-switch m-0 ms-auto"><input class="form-check-input" type="checkbox" id="webhook-enabled" name="notification.webhook.enabled"></div>
                             </div>

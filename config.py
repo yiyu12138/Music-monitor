@@ -5,7 +5,7 @@ from typing import Dict, Any
 CONFIG_FILE = os.path.join("data", "config.json")
 
 # 应用版本与项目主页（配置页展示用；升级版本只改这里）
-APP_VERSION = "1.3.4"
+APP_VERSION = "1.3.5"
 GITHUB_URL = "https://github.com/yiyu12138/Music-monitor"
 
 # 默认配置
@@ -52,6 +52,13 @@ DEFAULT_CONFIG = {
         "wecom": {
             "enabled": False,
             "webhook_url": ""
+        },
+        "telegram": {
+            "enabled": False,
+            "bot_token": "",
+            "chat_id": "",
+            "proxy": "",
+            "api_base": ""
         }
     }
 }

@@ -1168,7 +1168,7 @@ body.qq-login-open #qq-login-stage { display: grid; }
 .mon-name { font-size: .82rem; font-weight: 600; }
 .mon-dir-input { font-family: var(--mono); font-size: .76rem !important; }
 
-.notify-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .8rem; padding: .9rem 0 .6rem; }
+.notify-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: .8rem; padding: .9rem 0 .6rem; }
 .notify-card { padding: .8rem; border: 1px solid var(--border); border-radius: 14px; background: var(--surface-2); }
 .notify-head { display: flex; align-items: center; gap: .55rem; margin-bottom: .6rem; font-size: .88rem; }
 .notify-head .form-check-input { width: 2.4em; height: 1.3em; cursor: pointer; }
@@ -1176,6 +1176,7 @@ body.qq-login-open #qq-login-stage { display: grid; }
 .n-ico.wecom { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
 .n-ico.bark { background: linear-gradient(135deg, #f97316, #dc2626); }
 .n-ico.hook { background: linear-gradient(135deg, #8b5cf6, #6d28d9); }
+.n-ico.tg { background: linear-gradient(135deg, #38bdf8, #2563eb); }
 
 .config-actions {
     position: sticky;

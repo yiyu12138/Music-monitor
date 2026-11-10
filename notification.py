@@ -45,6 +45,26 @@ def _split_by_bytes(text: str, max_bytes: int) -> list:
     return chunks
 
 
+def _split_by_chars(text: str, max_chars: int) -> list:
+    """按字符数分段（Telegram 单条限制 4096 个 UTF-16 码元，这里按字符近似）"""
+    if len(text) <= max_chars:
+        return [text]
+    chunks, current = [], ""
+    for line in text.split("\n"):
+        candidate = f"{current}\n{line}" if current else line
+        if current and len(candidate) > max_chars:
+            chunks.append(current)
+            current = line
+        else:
+            current = candidate
+        while len(current) > max_chars:
+            chunks.append(current[:max_chars])
+            current = current[max_chars:]
+    if current:
+        chunks.append(current)
+    return chunks
+
+
 
 
 class NotificationManager:
@@ -53,11 +73,21 @@ class NotificationManager:
         self._config = config
         self._clients = {}
     
-    async def _get_client(self, client_id: str = "default") -> httpx.AsyncClient:
-        """获取或创建HTTP客户端"""
-        if client_id not in self._clients:
-            self._clients[client_id] = httpx.AsyncClient(timeout=10.0)
-        return self._clients[client_id]
+    async def _get_client(self, client_id: str = "default", proxy: str = "") -> httpx.AsyncClient:
+        """获取或创建 HTTP 客户端（代理不同时各建一个，避免互相串线）"""
+        key = f"{client_id}|{proxy}" if proxy else client_id
+        if key not in self._clients:
+            kwargs = {"timeout": 15.0}
+            if proxy:
+                kwargs["proxy"] = proxy  # httpx >= 0.28；旧版参数名是 proxies
+            try:
+                self._clients[key] = httpx.AsyncClient(**kwargs)
+            except TypeError:
+                if proxy:
+                    kwargs.pop("proxy", None)
+                    kwargs["proxies"] = proxy
+                self._clients[key] = httpx.AsyncClient(**kwargs)
+        return self._clients[key]
     
     async def _send_webhook(self, message: str, title: str = "QQ音乐下载器通知") -> bool:
         """发送Webhook通知"""
@@ -173,6 +203,60 @@ class NotificationManager:
                 await asyncio.sleep(0.3)  # 稍微错开，避免触发频率限制
         return ok
 
+    async def _send_telegram(self, message: str, title: str = "QQ音乐下载器通知") -> bool:
+        """发送 Telegram 机器人通知（Bot API sendMessage）
+
+        - 纯文本，不启用 parse_mode：歌名里带 * _ [ ] 这类字符很容易触发解析错误而整条发送失败
+        - 国内直连 api.telegram.org 基本不通，可以在配置里填 HTTP 代理或自建反代地址
+        - 单条上限 4096 个 UTF-16 码元，超长时按行拆成多条并标注序号
+
+        Args:
+            message: 通知内容
+            title: 通知标题（合并进正文首行，Telegram 没有独立标题字段）
+
+        Returns:
+            bool: 是否全部发送成功
+        """
+        tg_config = self._config.get("notification.telegram")
+        if not tg_config or not tg_config.get("enabled", False):
+            return False
+
+        bot_token = (tg_config.get("bot_token") or "").strip()
+        chat_id = str(tg_config.get("chat_id") or "").strip()
+        if not bot_token or not chat_id:
+            return False
+
+        api_base = (tg_config.get("api_base") or "").strip().rstrip("/") or "https://api.telegram.org"
+        proxy = (tg_config.get("proxy") or "").strip()
+        url = f"{api_base}/bot{bot_token}/sendMessage"
+
+        client = await self._get_client("telegram", proxy)
+        content = f"【{title}】\n{message}"
+        chunks = _split_by_chars(content, 3800)
+        total = len(chunks)
+        ok = True
+        for index, chunk in enumerate(chunks, 1):
+            head = f"({index}/{total})\n" if total > 1 else ""
+            payload = {
+                "chat_id": chat_id,
+                "text": head + chunk,
+                "disable_web_page_preview": True,
+            }
+            try:
+                response = await client.post(url, json=payload)
+                response.raise_for_status()
+                data = response.json()
+                if not data.get("ok", False):
+                    raise RuntimeError(data.get("description") or "Telegram 返回 ok=false")
+            except Exception as e:
+                # URL 里带着 bot_token，日志和报错里必须抹掉
+                detail = str(e).replace(bot_token, "***")
+                print(f"发送 Telegram 通知失败({index}/{total}): {detail}")
+                ok = False
+            if index < total:
+                await asyncio.sleep(0.4)  # 稍微错开，避免触发频率限制
+        return ok
+
     async def send_notification(self, message: str, title: str = "QQ音乐下载器通知") -> Dict[str, bool]:
         """发送通知，支持多种渠道并行发送
 
@@ -199,6 +283,10 @@ class NotificationManager:
         # 企业微信通知
         wecom_task = asyncio.create_task(self._send_wecom(message, title))
         tasks.append(("wecom", wecom_task))
+
+        # Telegram 机器人通知
+        telegram_task = asyncio.create_task(self._send_telegram(message, title))
+        tasks.append(("telegram", telegram_task))
 
         # 等待所有通知发送完成
         for name, task in tasks:
