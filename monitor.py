@@ -1,6 +1,7 @@
 import asyncio
 import os
 import time
+import traceback
 from typing import Dict, List, Set
 
 import aiofiles
@@ -475,15 +476,21 @@ async def _check_pending_completion():
             f"歌单 '{title}' 本次下载已结束，汇报结果: "
             + "、".join(f"{k}={v}" for k, v in stats.items())
         )
-        await notification_manager.send_playlist_report_notification(
-            title,
-            entries,
-            stats,
-            total_count=state.get("total_count", len(entries)),
-            batch_count=len(batch_mids),
-            truncated=bool(state.get("truncated")),
-            still_running=len(running),
-        )
+        try:
+            await notification_manager.send_playlist_report_notification(
+                title,
+                entries,
+                stats,
+                total_count=state.get("total_count", len(entries)),
+                batch_count=len(batch_mids),
+                truncated=bool(state.get("truncated")),
+                still_running=len(running),
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            # 发送失败也清掉本批，否则每 30 秒重发一次、日志被同一条报错刷满
+            print(f"警告：歌单 '{title}' 下载结果汇报发送失败，已丢弃本批: {e!r}")
         pending_completion.pop(playlist_id, None)
 
 
@@ -498,9 +505,19 @@ async def pending_report_task():
 
 
 async def monitoring_task():
-    """后台监控任务，定期运行"""
+    """后台监控任务，定期运行
+
+    单轮检查出错只记日志、继续下一轮：歌单接口抖动、通知发送失败都不该让
+    监控永久停摆。v1.3.4 之前这里是裸调用，一次异常就再也不检查歌单了。
+    """
     while True:
-        await check_playlists_for_updates()
+        try:
+            await check_playlists_for_updates()
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            print(f"警告：本轮歌单检查出错，跳过并继续下一轮: {e!r}")
+            traceback.print_exc()
         _wake.clear()
         try:
             await asyncio.wait_for(_wake.wait(), timeout=check_interval_seconds())

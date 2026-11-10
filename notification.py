@@ -6,6 +6,20 @@ import urllib.parse
 from typing import Dict, Any, Optional
 from config import config
 
+# 歌单结果汇报里各状态的显示文案（v1.2.3 重写 Bark 推送时被误删，v1.3.4 补回）
+STATUS_LABELS = {
+    "completed": "✅已下载",
+    "local_exists": "⏭本地已存在，跳过",
+    "failed": "❌下载失败",
+    "waiting": "⏳等待重试",
+    "pending": "⬇️下载中",
+    "cancelled": "🚫已取消",
+    "unknown": "⬜未下载",
+}
+
+# 汇报里各状态的排列顺序
+STATUS_SUMMARY_ORDER = ["completed", "local_exists", "failed", "waiting", "pending", "cancelled", "unknown"]
+
 
 def _split_by_bytes(text: str, max_bytes: int) -> list:
     """按 UTF-8 字节上限分段，优先在换行处断开（渠道通常限制消息字节数）"""
