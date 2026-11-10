@@ -285,8 +285,10 @@ async def _execute_download(
         print(f"错误：无法下载 {song_name}: {reason}")
         download_tasks[song_mid].update({"status": "failed", "error": reason})
         await _save_download_tasks()
-        from notification import notification_manager
-        await notification_manager.send_download_failed_notification(song_name, reason)
+        # 歌单批量下载不逐首推送，失败会在整批结束后的汇总里列出
+        if not (download_tasks.get(song_mid) or {}).get("playlist_mode"):
+            from notification import notification_manager
+            await notification_manager.send_download_failed_notification(song_name, reason)
         return
 
     if url_info and url_info.get("url"):
@@ -410,8 +412,10 @@ async def _execute_download(
             display_dir = os.path.dirname(file_path) if file_path else ""
             if display_dir and not display_dir.startswith("/"):
                 display_dir = f"/app/{display_dir}"
-            from notification import notification_manager
-            await notification_manager.send_download_complete_notification(song_name, quality, file_size_str, display_dir)
+            # 歌单批量下载不逐首推送，等整批结束后由歌单汇总统一汇报
+            if not (download_tasks.get(song_mid) or {}).get("playlist_mode"):
+                from notification import notification_manager
+                await notification_manager.send_download_complete_notification(song_name, quality, file_size_str, display_dir)
         except httpx.HTTPStatusError as e:
             _remove_quiet(tmp_path)
             error_message = f"HTTP 错误: {e.response.status_code} {e.response.reason_phrase}"
@@ -433,8 +437,9 @@ async def _execute_download(
             error_message = f"下载时发生未知错误: {e}"
             download_tasks[song_mid].update({"status": "failed", "error": error_message})
             print(f"下载失败: {song_name}, 原因: {e}")
-            from notification import notification_manager
-            await notification_manager.send_download_failed_notification(song_name, error_message)
+            if not (download_tasks.get(song_mid) or {}).get("playlist_mode"):
+                from notification import notification_manager
+                await notification_manager.send_download_failed_notification(song_name, error_message)
 
     else:
         # 如果获取链接失败，先检查是否是登录态失效

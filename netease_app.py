@@ -35,6 +35,7 @@ tasks: dict = {}                  # key: 网易云歌曲 id(str)
 queue: asyncio.Queue = asyncio.Queue()
 _bg: list = []
 _wake = asyncio.Event()
+_batches: dict = {}               # 歌单批次：{歌单名: {"ids": [...]}}，整批跑完后汇报一次
 _save_lock = asyncio.Lock()
 _check_lock = asyncio.Lock()
 _account_cache = {"t": 0.0, "v": None}
@@ -315,7 +316,8 @@ async def _download(sid: str):
         else:
             msg = f"{official_msg or '官方渠道未取到链接'}，下载源也未取到链接"
         task.update(status="failed", error=msg)
-        await _notify("fail", name, msg)
+        if not task.get("source"):
+            await _notify("fail", name, msg)
         return
 
     safe = re.sub(r'[\\/*?:"<>|]', "", task["song_name"]).strip().rstrip(".")
@@ -358,7 +360,8 @@ async def _download(sid: str):
             os.remove(tmp)
         msg = f"下载出错: {e}"
         task.update(status="failed", error=msg)
-        await _notify("fail", name, msg)
+        if not task.get("source"):
+            await _notify("fail", name, msg)
         return
 
     size = os.path.getsize(path) if os.path.exists(path) else 0
@@ -458,8 +461,12 @@ async def check_playlists() -> int:
                     found += len(new_songs)
                     print(f"[网易云] 歌单「{name}」发现 {len(new_songs)} 首新歌")
                     target = playlist_dir(name, info.get("download_dir", ""))
+                    batch_ids = []
                     for s in new_songs:
-                        await enqueue(s, target, source=name, date_folder=bool(info.get("date_folder")))
+                        if await enqueue(s, target, source=name, date_folder=bool(info.get("date_folder"))):
+                            batch_ids.append(s["id"])
+                    if batch_ids:
+                        _batches[name] = {"ids": batch_ids}
                     await _notify("playlist", f"[网易云] {name}",
                                   [{"name": s["name"], "singer": s["singer"]} for s in new_songs], len(songs))
                 info["known_ids"] = sorted(current)

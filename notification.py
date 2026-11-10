@@ -21,6 +21,16 @@ STATUS_LABELS = {
 STATUS_SUMMARY_ORDER = ["completed", "local_exists", "failed", "waiting", "pending", "cancelled", "unknown"]
 
 
+# 汇报里「没下成」的短前缀，比完整文案更省地方
+_STATUS_SHORT = {
+    "failed": "❌",
+    "waiting": "⏳",
+    "pending": "⬇️",
+    "cancelled": "🚫",
+    "unknown": "⬜",
+}
+
+
 def _split_by_bytes(text: str, max_bytes: int) -> list:
     """按 UTF-8 字节上限分段，优先在换行处断开（渠道通常限制消息字节数）"""
     if len(text.encode("utf-8")) <= max_bytes:
@@ -310,10 +320,9 @@ class NotificationManager:
         Returns:
             Dict[str, bool]: 各渠道发送结果
         """
-        size_line = f"\n文件大小: {file_size}" if file_size else ""
-        path_line = f"\n下载位置: {file_path}" if file_path else ""
-        message = f"歌曲名称: {song_name}\n下载音质: {quality}{size_line}{path_line}\n下载时间: {time.strftime('%Y-%m-%d %H:%M:%S')}"
-        return await self.send_notification(message, "歌曲下载完成")
+        detail = " · ".join(p for p in (quality, file_size) if p)
+        message = f"{song_name}" + (f"\n{detail}" if detail else "")
+        return await self.send_notification(message, "下载完成")
 
     async def send_download_failed_notification(self, song_name: str, error: str) -> Dict[str, bool]:
         """发送下载失败通知
@@ -325,8 +334,8 @@ class NotificationManager:
         Returns:
             Dict[str, bool]: 各渠道发送结果
         """
-        message = f"歌曲名称: {song_name}\n失败原因: {error}\n失败时间: {time.strftime('%Y-%m-%d %H:%M:%S')}"
-        return await self.send_notification(message, "歌曲下载失败")
+        message = f"{song_name}\n{error}"
+        return await self.send_notification(message, "下载失败")
 
     async def send_playlist_update_notification(self, playlist_name: str, new_songs: list, total_count: int = 0) -> Dict[str, bool]:
         """发送歌单更新通知
@@ -339,17 +348,16 @@ class NotificationManager:
         Returns:
             Dict[str, bool]: 各渠道发送结果
         """
-        song_list = "\n".join([f"- {song['name']} - {', '.join(s['name'] for s in song['singer'])}" for song in new_songs[:5]])
-        if len(new_songs) > 5:
-            song_list += f"\n... 等共 {len(new_songs)} 首新歌曲"
-
-        total_line = f"\n歌单共: {total_count}首" if total_count else ""
-        message = (
-            f"歌单名称: {playlist_name}{total_line}\n新增歌曲: {len(new_songs)}首\n\n{song_list}"
-            f"\n\n更新时间: {time.strftime('%Y-%m-%d %H:%M:%S')}"
-            f"\n（这批歌曲的下载结果会随后单独汇报）"
-        )
-        return await self.send_notification(message, "歌单更新提醒")
+        head = f"{playlist_name} +{len(new_songs)} 首"
+        if total_count:
+            head += f"（共 {total_count} 首）"
+        lines = [head]
+        # 新歌少时列名字，多了只报数量，避免一次收藏几十首把通知刷屏
+        if len(new_songs) <= 3:
+            for song in new_songs:
+                singers = ", ".join(s["name"] for s in song["singer"])
+                lines.append(f"· {song['name']} - {singers}")
+        return await self.send_notification("\n".join(lines), "歌单更新")
 
     async def send_playlist_report_notification(
         self,
@@ -376,33 +384,37 @@ class NotificationManager:
         Returns:
             Dict[str, bool]: 各渠道发送结果
         """
-        summary = " · ".join(
-            f"{STATUS_LABELS.get(key, key)} {stats[key]}"
-            for key in STATUS_SUMMARY_ORDER
-            if stats.get(key)
-        )
+        # 只报有发生的状态，一行说完
+        parts = []
+        for key, label in (
+            ("completed", "完成"), ("local_exists", "已有"), ("failed", "失败"),
+            ("waiting", "待重试"), ("pending", "下载中"),
+            ("cancelled", "取消"), ("unknown", "未下载"),
+        ):
+            if stats.get(key):
+                parts.append(f"{label} {stats[key]}")
 
-        lines = []
-        for entry in entries:
-            label = STATUS_LABELS.get(entry.get("status"), entry.get("status", ""))
-            detail = entry.get("detail") or ""
-            mark = "🆕" if entry.get("in_batch") else "  "
-            detail_text = f"（{detail}）" if detail else ""
-            lines.append(f"{entry.get('index', '')}.{mark} {entry.get('label', '')} {label}{detail_text}")
+        problems = [e for e in entries if e.get("status") not in ("completed", "local_exists")]
+        if not problems:
+            message = f"{playlist_name}：{len(entries)} 首全部完成"
+            return await self.send_notification(message, "下载结果")
 
-        header = f"歌单名称: {playlist_name}\n歌单共 {total_count} 首"
+        head = f"{playlist_name}：" + " · ".join(parts)
         if batch_count:
-            header += f"（本次新增 {batch_count} 首）"
-        if still_running:
-            header += f"\n⚠️ 仍有 {still_running} 首在下载中，此处为当前进度"
+            head += f"（本次新增 {batch_count} 首）"
 
-        message = (
-            f"{header}\n结果: {summary}\n\n"
-            + "\n".join(lines)
-            + (f"\n\n（仅列出歌单前 {len(entries)} 首，歌单实际共 {total_count} 首）" if truncated else "")
-            + f"\n\n标记说明: 🆕=本次新增\n汇报时间: {time.strftime('%Y-%m-%d %H:%M:%S')}"
-        )
-        return await self.send_notification(message, "歌单下载结果")
+        lines = [head]
+        # 只列没下成的，成功的不占篇幅；超过 8 条就截断
+        for entry in problems[:8]:
+            short = _STATUS_SHORT.get(entry.get("status"), "⬜")
+            detail = entry.get("detail") or ""
+            detail_text = f"（{detail}）" if detail else ""
+            lines.append(f"{short} {entry.get('label', '')}{detail_text}")
+        if len(problems) > 8:
+            lines.append(f"…另有 {len(problems) - 8} 首未完成，详见网页")
+        if still_running:
+            lines.append(f"（仍有 {still_running} 首在下载中）")
+        return await self.send_notification("\n".join(lines), "下载结果")
 
     async def send_playlist_completion_notification(self, playlist_name: str, completed_songs: list) -> Dict[str, bool]:
         """发送监控歌单新增歌曲部分下载完成通知
@@ -414,12 +426,8 @@ class NotificationManager:
         Returns:
             Dict[str, bool]: 各渠道发送结果
         """
-        song_list = "\n".join([f"- {song['name']} - {', '.join(song['singer_names'])}" for song in completed_songs[:5]])
-        if len(completed_songs) > 5:
-            song_list += f"\n... 等共 {len(completed_songs)} 首"
-
-        message = f"歌单名称: {playlist_name}\n本次更新已下载完成: {len(completed_songs)}首\n\n{song_list}\n\n完成时间: {time.strftime('%Y-%m-%d %H:%M:%S')}"
-        return await self.send_notification(message, "歌单更新下载完成")
+        message = f"{playlist_name}：{len(completed_songs)} 首已下载完成"
+        return await self.send_notification(message, "下载完成")
 
     async def send_login_expired_notification(self, message: str) -> Dict[str, bool]:
         """发送登录状态失效通知
@@ -430,8 +438,8 @@ class NotificationManager:
         Returns:
             Dict[str, bool]: 各渠道发送结果
         """
-        content = f"QQ 音乐登录状态已失效，无法继续下载。\n\n原因: {message}\n\n时间: {time.strftime('%Y-%m-%d %H:%M:%S')}"
-        return await self.send_notification(content, "登录状态已失效")
+        content = f"QQ 音乐登录已失效，下载暂停。\n{message}"
+        return await self.send_notification(content, "登录失效")
 
     async def close(self):
         """关闭所有HTTP客户端"""
