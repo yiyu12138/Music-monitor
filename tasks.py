@@ -421,8 +421,9 @@ async def _execute_download(
             error_message = f"HTTP 错误: {e.response.status_code} {e.response.reason_phrase}"
             download_tasks[song_mid].update({"status": "failed", "error": error_message})
             print(f"下载失败: {song_name}, 原因: {error_message}")
-            from notification import notification_manager
-            await notification_manager.send_download_failed_notification(song_name, error_message)
+            if not (download_tasks.get(song_mid) or {}).get("playlist_mode"):
+                from notification import notification_manager
+                await notification_manager.send_download_failed_notification(song_name, error_message)
         except UserCancelled:
             # 用户取消下载：清理半成品文件，状态已在 cancel 接口置为 cancelled
             _remove_quiet(tmp_path)

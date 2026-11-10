@@ -399,7 +399,9 @@ async def _download(sid: str):
         print(f"[网易云] 写入标签/歌词失败: {e}")
 
     from local_files import human_size
-    await _notify("ok", name, quality, human_size(size), os.path.dirname(path))
+    # 歌单批量下载不逐首推送，整批结束后由 _report_batches 汇总一条
+    if not task.get("source"):
+        await _notify("ok", name, quality, human_size(size), os.path.dirname(path))
 
 
 async def _process(sid):
@@ -437,6 +439,34 @@ def _load_monitor() -> dict:
 
 def _save_monitor(data: dict):
     _write_json(MONITOR_FILE, data)
+
+
+async def _report_batches():
+    """歌单批量下载跑完后汇总一条，不逐首推送"""
+    for source, info in list(_batches.items()):
+        ids = info.get("ids") or []
+        if not ids:
+            _batches.pop(source, None)
+            continue
+        tlist = [tasks.get(i) or {} for i in ids]
+        if any(t.get("status") in ("queued", "downloading") for t in tlist):
+            continue
+
+        ok = sum(1 for t in tlist if t.get("status") == "completed")
+        skipped = sum(1 for t in tlist if t.get("skipped"))
+        bad = [t for t in tlist if t.get("status") == "failed"]
+        parts = [f"完成 {ok}"]
+        if skipped:
+            parts.append(f"已有 {skipped}")
+        if bad:
+            parts.append(f"失败 {len(bad)}")
+        lines = [f"{source}：" + " · ".join(parts)]
+        for t in bad[:5]:
+            lines.append(f"❌ {t.get('song_name', '')}（{t.get('error', '')}）")
+        if len(bad) > 5:
+            lines.append(f"…另有 {len(bad) - 5} 首失败，详见网页")
+        await _notify("text", "\n".join(lines), "下载结果")
+        _batches.pop(source, None)
 
 
 async def check_playlists() -> int:
@@ -491,6 +521,10 @@ async def _monitor_loop():
             await check_playlists()
         except Exception as e:
             print(f"[网易云] 监控循环异常: {e}")
+        try:
+            await _report_batches()
+        except Exception as e:
+            print(f"[网易云] 批次汇报异常: {e}")
         try:
             await asyncio.wait_for(_wake.wait(), timeout=check_interval_seconds())
         except asyncio.TimeoutError:
