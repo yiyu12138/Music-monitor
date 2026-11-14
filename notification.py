@@ -31,6 +31,21 @@ _STATUS_SHORT = {
 }
 
 
+async def _local_song_count(refresh: bool = False) -> int:
+    """本地音乐库里已下载的歌曲数（QQ 音乐 + 网易云合计）
+
+    refresh=True 时先重新扫一遍下载目录，保证刚下完的那批也算进去。
+    """
+    try:
+        from utils import song_index_manager
+        if refresh:
+            await song_index_manager.update_index()
+        return len(song_index_manager.get_existing_song_basenames())
+    except Exception as e:
+        print(f"统计本地歌曲数量失败: {e}")
+        return 0
+
+
 def _split_by_bytes(text: str, max_bytes: int) -> list:
     """按 UTF-8 字节上限分段，优先在换行处断开（渠道通常限制消息字节数）"""
     if len(text.encode("utf-8")) <= max_bytes:
@@ -321,8 +336,13 @@ class NotificationManager:
             Dict[str, bool]: 各渠道发送结果
         """
         detail = " · ".join(p for p in (quality, file_size) if p)
-        message = f"{song_name}" + (f"\n{detail}" if detail else "")
-        return await self.send_notification(message, "下载完成")
+        lines = [song_name]
+        if detail:
+            lines.append(detail)
+        local = await _local_song_count()
+        if local:
+            lines.append(f"本地：{local} 首（两个渠道合计）")
+        return await self.send_notification("\n".join(lines), "下载完成")
 
     async def send_download_failed_notification(self, song_name: str, error: str) -> Dict[str, bool]:
         """发送下载失败通知
@@ -391,39 +411,34 @@ class NotificationManager:
             key = entry.get("status") or "unknown"
             batch_stats[key] = batch_stats.get(key, 0) + 1
         total = batch_count or len(batch_entries)
+        local = await _local_song_count(refresh=True)
 
         problems = [e for e in batch_entries if e.get("status") not in ("completed", "local_exists")]
         if not problems:
-            # 少数几首直接把歌名带上，多了只报数量
+            # 少数几首直接把歌名写出来，多了只报数量
             if total <= 3:
-                names = "\n".join(e.get("label", "") for e in batch_entries)
-                message = f"+{total} 首，全部完成\n{names}"
+                lines = [e.get("label", "") for e in batch_entries]
             else:
-                message = f"+{total} 首，全部完成"
-            return await self.send_notification(message, playlist_name)
-
-        # 只报有发生的状态，一行说完
-        parts = []
-        for key, label in (
-            ("completed", "完成"), ("local_exists", "已有"), ("failed", "失败"),
-            ("waiting", "待重试"), ("pending", "下载中"),
-            ("cancelled", "取消"), ("unknown", "未下载"),
-        ):
-            if batch_stats.get(key):
-                parts.append(f"{label} {batch_stats[key]}")
-
-        lines = [f"+{total} 首：" + " · ".join(parts)]
-        # 只列没下成的，成功的不占篇幅；超过 8 条就截断
-        for entry in problems[:8]:
-            short = _STATUS_SHORT.get(entry.get("status"), "⬜")
-            detail = entry.get("detail") or ""
-            detail_text = f"（{detail}）" if detail else ""
-            lines.append(f"{short} {entry.get('label', '')}{detail_text}")
-        if len(problems) > 8:
-            lines.append(f"…另有 {len(problems) - 8} 首未完成，详见网页")
+                lines = [f"{total} 首全部完成"]
+        else:
+            if total <= 3:
+                lines = [e.get("label", "") for e in batch_entries
+                         if e.get("status") in ("completed", "local_exists")]
+            else:
+                lines = [f"{total} 首，完成 {batch_stats.get('completed', 0)} · 失败 {len(problems)}"]
+            # 只列没下成的，成功的不占篇幅；超过 8 条就截断
+            for entry in problems[:8]:
+                short = _STATUS_SHORT.get(entry.get("status"), "⬜")
+                detail = entry.get("detail") or ""
+                detail_text = f"（{detail}）" if detail else ""
+                lines.append(f"{short} {entry.get('label', '')}{detail_text}")
+            if len(problems) > 8:
+                lines.append(f"…另有 {len(problems) - 8} 首未完成")
         if still_running:
             lines.append(f"（仍有 {still_running} 首在下载中）")
-        return await self.send_notification("\n".join(lines), playlist_name)
+        if local:
+            lines.append(f"本地：{local} 首（两个渠道合计）")
+        return await self.send_notification("\n".join(lines), "下载完成")
 
     async def send_playlist_completion_notification(self, playlist_name: str, completed_songs: list) -> Dict[str, bool]:
         """发送监控歌单新增歌曲部分下载完成通知

@@ -453,31 +453,29 @@ async def _report_batches():
             continue
 
         ok = sum(1 for t in tlist if t.get("status") == "completed")
-        skipped = sum(1 for t in tlist if t.get("skipped"))
         bad = [t for t in tlist if t.get("status") == "failed"]
         total = len(tlist)
-        title = f"[网易云] {source}"
+
+        from notification import _local_song_count
+        local = await _local_song_count(refresh=True)
 
         if not bad:
             if total <= 3:
-                names = "\n".join(t.get("song_name", "") for t in tlist)
-                msg = f"+{total} 首，全部完成\n{names}"
+                lines = [t.get("song_name", "") for t in tlist]
             else:
-                msg = f"+{total} 首，全部完成"
-            await _notify("text", msg, title)
-            _batches.pop(source, None)
-            continue
-
-        parts = [f"完成 {ok}"]
-        if skipped:
-            parts.append(f"已有 {skipped}")
-        parts.append(f"失败 {len(bad)}")
-        lines = [f"+{total} 首：" + " · ".join(parts)]
-        for t in bad[:8]:
-            lines.append(f"❌ {t.get('song_name', '')}（{t.get('error', '')}）")
-        if len(bad) > 8:
-            lines.append(f"…另有 {len(bad) - 8} 首失败，详见网页")
-        await _notify("text", "\n".join(lines), title)
+                lines = [f"{total} 首全部完成"]
+        else:
+            if total <= 3:
+                lines = [t.get("song_name", "") for t in tlist if t.get("status") == "completed"]
+            else:
+                lines = [f"{total} 首，完成 {ok} · 失败 {len(bad)}"]
+            for t in bad[:8]:
+                lines.append(f"❌ {t.get('song_name', '')}（{t.get('error', '')}）")
+            if len(bad) > 8:
+                lines.append(f"…另有 {len(bad) - 8} 首未完成")
+        if local:
+            lines.append(f"本地：{local} 首（两个渠道合计）")
+        await _notify("text", "\n".join(lines), "下载完成")
         _batches.pop(source, None)
 
 
