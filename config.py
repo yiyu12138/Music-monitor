@@ -5,7 +5,7 @@ from typing import Dict, Any
 CONFIG_FILE = os.path.join("data", "config.json")
 
 # 应用版本与项目主页（配置页展示用；升级版本只改这里）
-APP_VERSION = "1.3.6"
+APP_VERSION = "1.3.7"
 GITHUB_URL = "https://github.com/yiyu12138/Music-monitor"
 
 # 默认配置
@@ -87,6 +87,26 @@ class ConfigManager:
 
         # 从环境变量加载配置，优先级高于文件配置
         self._load_env_config()
+
+        # 飞牛原生部署：把 Docker 的容器路径换算成宿主机目录
+        self._remap_native_download_paths()
+
+    def _remap_native_download_paths(self):
+        """原生部署时，把 /app/downloads 前缀换成本机音乐目录
+
+        原生安装没有 /app 挂载，配置里如果还是 Docker 的默认值
+        （/app/downloads、/app/downloads/save），程序会真的在系统根目录下建 /app。
+        启动脚本用 MM_DOWNLOAD_ROOT 传入安装向导里选的音乐目录，这里做前缀替换。
+        Docker 部署不设这个变量，路径原样保留。
+        """
+        root = (os.environ.get("MM_DOWNLOAD_ROOT") or "").strip().rstrip("/")
+        if not root:
+            return
+        for key in ("download.default_dir", "download.downloads_root"):
+            value = self.get(key, "")
+            if isinstance(value, str) and (value == "/app/downloads" or value.startswith("/app/downloads/")):
+                rest = value[len("/app/downloads"):].strip("/")
+                self.set(key, f"{root}/{rest}" if rest else root)
 
     def _migrate_ncm_config(self):
         legacy = os.path.join("data", "ncm_config.json")
@@ -221,6 +241,8 @@ class ConfigManager:
     def update_config(self, new_config: Dict[str, Any]) -> bool:
         """更新配置"""
         self._merge_config(self._config, new_config)
+        # 保存时也换算一次：点「恢复默认」写进来的容器路径要立刻纠正
+        self._remap_native_download_paths()
         return self.save_config()
 
     def reset_config(self) -> bool:

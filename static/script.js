@@ -1874,6 +1874,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('wecom-enabled').addEventListener('change', toggleWecomFields);
     document.getElementById('write-lyrics').addEventListener('change', toggleLyricFields);
     document.getElementById('playlist-subfolder').addEventListener('change', updateSubfolderHint);
+    const playlistRootInput = document.getElementById('playlist-root-dir');
+    if (playlistRootInput) playlistRootInput.addEventListener('input', updateSubfolderHint);
     document.getElementById('monitor-check-now').addEventListener('click', async (e) => {
         const btn = e.currentTarget;
         btn.disabled = true;
@@ -2124,7 +2126,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const sw = document.getElementById('playlist-subfolder');
         const hint = document.getElementById('subfolder-hint');
         if (!sw || !hint) return;
-        hint.textContent = sw.checked ? '当前：歌单保存到 /app/downloads/<歌单名>/' : '当前：所有歌单平铺保存到 /app/downloads';
+        const rootInput = document.getElementById('playlist-root-dir');
+        const root = (rootInput?.value || '').trim().replace(/\/+$/, '') || '/vol1/1000/music';
+        hint.textContent = sw.checked
+            ? `当前：歌单保存到 ${root}/<歌单名>/`
+            : `当前：所有歌单平铺保存到 ${root}`;
     }
 
     function fillFormWithConfig(config) {

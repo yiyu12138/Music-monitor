@@ -478,7 +478,11 @@
                     </div>
                     <div class="cfg-row">
                         <div class="cfg-label"><span>单曲 / 搜索下载目录</span><small>不属于任何歌单的下载都放这里</small></div>
-                        <input type="text" class="form-control cfg-path" id="default-download-dir" disabled>
+                        <input type="text" class="form-control cfg-path" id="default-download-dir" name="download.default_dir" placeholder="/vol1/1000/music">
+                    </div>
+                    <div class="cfg-row">
+                        <div class="cfg-label"><span>歌单下载根目录</span><small>监控歌单的新歌放这里，开了子文件夹会再加一层歌单名</small></div>
+                        <input type="text" class="form-control cfg-path" id="playlist-root-dir" name="download.downloads_root" placeholder="/vol1/1000/music">
                     </div>
                     <div class="cfg-row">
                         <div class="cfg-label">

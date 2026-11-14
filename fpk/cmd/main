@@ -90,6 +90,7 @@ start_app() {
     (
         cd "${RUN_DIR}" || exit 1
         TZ="${TZ_VAL}" \
+        MM_DOWNLOAD_ROOT="${MUSIC_DIR}" \
         PYTHONPATH="${APP_DIR}/server:${APP_DIR}/pylib" \
         PYTHONUNBUFFERED=1 \
         nohup "${PY}" -m uvicorn main:app --host 0.0.0.0 --port "${PORT}" --no-access-log >>"${LOG_FILE}" 2>&1 &
