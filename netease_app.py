@@ -455,17 +455,29 @@ async def _report_batches():
         ok = sum(1 for t in tlist if t.get("status") == "completed")
         skipped = sum(1 for t in tlist if t.get("skipped"))
         bad = [t for t in tlist if t.get("status") == "failed"]
+        total = len(tlist)
+        title = f"[网易云] {source}"
+
+        if not bad:
+            if total <= 3:
+                names = "\n".join(t.get("song_name", "") for t in tlist)
+                msg = f"+{total} 首，全部完成\n{names}"
+            else:
+                msg = f"+{total} 首，全部完成"
+            await _notify("text", msg, title)
+            _batches.pop(source, None)
+            continue
+
         parts = [f"完成 {ok}"]
         if skipped:
             parts.append(f"已有 {skipped}")
-        if bad:
-            parts.append(f"失败 {len(bad)}")
-        lines = [f"{source}：" + " · ".join(parts)]
-        for t in bad[:5]:
+        parts.append(f"失败 {len(bad)}")
+        lines = [f"+{total} 首：" + " · ".join(parts)]
+        for t in bad[:8]:
             lines.append(f"❌ {t.get('song_name', '')}（{t.get('error', '')}）")
-        if len(bad) > 5:
-            lines.append(f"…另有 {len(bad) - 5} 首失败，详见网页")
-        await _notify("text", "\n".join(lines), "下载结果")
+        if len(bad) > 8:
+            lines.append(f"…另有 {len(bad) - 8} 首失败，详见网页")
+        await _notify("text", "\n".join(lines), title)
         _batches.pop(source, None)
 
 
@@ -497,8 +509,7 @@ async def check_playlists() -> int:
                             batch_ids.append(s["id"])
                     if batch_ids:
                         _batches[name] = {"ids": batch_ids}
-                    await _notify("playlist", f"[网易云] {name}",
-                                  [{"name": s["name"], "singer": s["singer"]} for s in new_songs], len(songs))
+                    # 发现新歌不单独推送，等这批下载结束合并成一条
                 info["known_ids"] = sorted(current)
                 info["title"] = name
                 info["cover"] = detail.get("cover") or info.get("cover", "")

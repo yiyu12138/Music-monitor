@@ -390,6 +390,17 @@ class NotificationManager:
         for entry in batch_entries:
             key = entry.get("status") or "unknown"
             batch_stats[key] = batch_stats.get(key, 0) + 1
+        total = batch_count or len(batch_entries)
+
+        problems = [e for e in batch_entries if e.get("status") not in ("completed", "local_exists")]
+        if not problems:
+            # 少数几首直接把歌名带上，多了只报数量
+            if total <= 3:
+                names = "\n".join(e.get("label", "") for e in batch_entries)
+                message = f"+{total} 首，全部完成\n{names}"
+            else:
+                message = f"+{total} 首，全部完成"
+            return await self.send_notification(message, playlist_name)
 
         # 只报有发生的状态，一行说完
         parts = []
@@ -401,17 +412,7 @@ class NotificationManager:
             if batch_stats.get(key):
                 parts.append(f"{label} {batch_stats[key]}")
 
-        problems = [e for e in batch_entries if e.get("status") not in ("completed", "local_exists")]
-        if not problems:
-            total = batch_count or len(batch_entries)
-            message = f"{playlist_name}：{total} 首全部完成"
-            return await self.send_notification(message, "下载结果")
-
-        head = f"{playlist_name}：" + " · ".join(parts)
-        if batch_count:
-            head += f"（本次新增 {batch_count} 首）"
-
-        lines = [head]
+        lines = [f"+{total} 首：" + " · ".join(parts)]
         # 只列没下成的，成功的不占篇幅；超过 8 条就截断
         for entry in problems[:8]:
             short = _STATUS_SHORT.get(entry.get("status"), "⬜")
@@ -422,7 +423,7 @@ class NotificationManager:
             lines.append(f"…另有 {len(problems) - 8} 首未完成，详见网页")
         if still_running:
             lines.append(f"（仍有 {still_running} 首在下载中）")
-        return await self.send_notification("\n".join(lines), "下载结果")
+        return await self.send_notification("\n".join(lines), playlist_name)
 
     async def send_playlist_completion_notification(self, playlist_name: str, completed_songs: list) -> Dict[str, bool]:
         """发送监控歌单新增歌曲部分下载完成通知

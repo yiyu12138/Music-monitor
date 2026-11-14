@@ -348,13 +348,8 @@ async def _do_check_playlists():
                 # 更新该歌单的已知歌曲列表
                 updated_playlists[playlist_id]["known_song_mids"].update(new_mids)
 
-                # 通知①：发现更新（含新增数量与歌单总数）
+                # 发现更新后不单独推送，等这批下载结束合并成一条结果通知
                 if new_song_dicts:
-                    from notification import notification_manager
-                    await notification_manager.send_playlist_update_notification(
-                        title, new_song_dicts, total_count=len(current_songs)
-                    )
-                    # 登记待汇报批次：这批下载全部结束后，发送完整歌单结果
                     pending_completion[playlist_id] = {
                         "title": title,
                         "playlist_songs": playlist_snapshot,
