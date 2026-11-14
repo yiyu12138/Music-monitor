@@ -341,7 +341,7 @@ class NotificationManager:
             lines.append(detail)
         local = await _local_song_count()
         if local:
-            lines.append(f"本地：{local} 首（两个渠道合计）")
+            lines.append(f"本地：{local} 首")
         return await self.send_notification("\n".join(lines), "下载完成")
 
     async def send_download_failed_notification(self, song_name: str, error: str) -> Dict[str, bool]:
@@ -437,7 +437,7 @@ class NotificationManager:
         if still_running:
             lines.append(f"（仍有 {still_running} 首在下载中）")
         if local:
-            lines.append(f"本地：{local} 首（两个渠道合计）")
+            lines.append(f"本地：{local} 首")
         return await self.send_notification("\n".join(lines), "下载完成")
 
     async def send_playlist_completion_notification(self, playlist_name: str, completed_songs: list) -> Dict[str, bool]:

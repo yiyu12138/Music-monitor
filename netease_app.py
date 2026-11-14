@@ -474,7 +474,7 @@ async def _report_batches():
             if len(bad) > 8:
                 lines.append(f"…另有 {len(bad) - 8} 首未完成")
         if local:
-            lines.append(f"本地：{local} 首（两个渠道合计）")
+            lines.append(f"本地：{local} 首")
         await _notify("text", "\n".join(lines), "下载完成")
         _batches.pop(source, None)
 
