@@ -316,14 +316,17 @@ async def _do_check_playlists():
                 # 该歌单自己的"按日期建文件夹"开关
                 date_folder = bool(details.get("date_folder", False))
 
-                # 完整歌单快照（用于结算后的结果汇报，最多 REPORT_MAX_SONGS 首）
+                # 汇报用的曲目列表：本批新增的排最前面，再补歌单里的其他歌
+                # （以前直接取歌单前 50 首，汇报里会把历史歌曲算进「本次结果」）
+                batch_songs = [s for s in current_songs if s["mid"] in new_mids]
+                other_songs = [s for s in current_songs if s["mid"] not in new_mids]
                 playlist_snapshot = [
                     {
                         "mid": song.get("mid"),
                         "name": song.get("name", "未知歌曲"),
                         "singer_names": [s.get("name", "") for s in song.get("singer", [])],
                     }
-                    for song in current_songs[:REPORT_MAX_SONGS]
+                    for song in (batch_songs + other_songs)[:REPORT_MAX_SONGS]
                 ]
 
                 batch_mids = set()

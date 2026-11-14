@@ -384,6 +384,13 @@ class NotificationManager:
         Returns:
             Dict[str, bool]: 各渠道发送结果
         """
+        # 只统计本批新增的歌：歌单里的历史曲目不算进「本次结果」
+        batch_entries = [e for e in entries if e.get("in_batch")] or entries
+        batch_stats = {}
+        for entry in batch_entries:
+            key = entry.get("status") or "unknown"
+            batch_stats[key] = batch_stats.get(key, 0) + 1
+
         # 只报有发生的状态，一行说完
         parts = []
         for key, label in (
@@ -391,12 +398,13 @@ class NotificationManager:
             ("waiting", "待重试"), ("pending", "下载中"),
             ("cancelled", "取消"), ("unknown", "未下载"),
         ):
-            if stats.get(key):
-                parts.append(f"{label} {stats[key]}")
+            if batch_stats.get(key):
+                parts.append(f"{label} {batch_stats[key]}")
 
-        problems = [e for e in entries if e.get("status") not in ("completed", "local_exists")]
+        problems = [e for e in batch_entries if e.get("status") not in ("completed", "local_exists")]
         if not problems:
-            message = f"{playlist_name}：{len(entries)} 首全部完成"
+            total = batch_count or len(batch_entries)
+            message = f"{playlist_name}：{total} 首全部完成"
             return await self.send_notification(message, "下载结果")
 
         head = f"{playlist_name}：" + " · ".join(parts)
